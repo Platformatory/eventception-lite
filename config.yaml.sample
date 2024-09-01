@@ -1,0 +1,45 @@
+# service:
+name: api-log-processor
+description: Service to process request-response (or network flow) logs from Kafka topic.
+
+kafka:
+  streamsConfig:
+    bootstrapServers: "streams-cluster-bootstrap-server:9092"
+    properties:
+      application.id: "your-application-id"
+      default.key.serde: "org.apache.kafka.common.serialization.Serdes$StringSerde"
+      default.value.serde: "org.apache.kafka.common.serialization.Serdes$StringSerde"
+      state.dir: "/tmp/kafka-streams"
+      consumer:
+        max.poll.records: 500
+        session.timeout.ms: 10000
+      producer:
+        acks: "all"
+        retries: 3
+        batch.size: 16384
+        linger.ms: 1
+      adminClient:
+        retries: 5
+        request.timeout.ms: 30000
+    authentication:
+      sasl.mechanism: "PLAIN"
+      security.protocol: "SASL_SSL"
+      sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username='' password='';"
+
+topologies:
+  - name: route-and-transform-pipeline
+    input:
+      topics: "route-logs-.*" # Regex pattern to subscribe to input topics
+    processors:
+      - type: filter
+        celExpression: "request.url == '/orders' || response.status == 201"
+      - type: JSONTransform
+        transform:
+          key: "$.request"
+          value: "$.response"
+      - type: ChangeDataCapture
+        name: cdc
+        keyLookupExpression: "request.id"
+    output:
+      topic: "lite-output" # CEL expression for dynamic output evaluation
+      dlq: "'${routeAndTransformDlqTopic}'" # CEL expression for dynamic DLQ evaluation
