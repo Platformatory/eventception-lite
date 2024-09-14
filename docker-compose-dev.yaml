@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  build:
+    image: maven:3.8.7-openjdk-18
+    container_name: eventception-lite-build
+    volumes:
+      - .:/app
+    working_dir: /app
+    restart: on-failure
+    command: mvn clean package
+
+  eventception-lite:
+    image: openjdk:17
+    container_name: eventception-lite
+    restart: always
+    volumes:
+      - ./target:/app/target
+      - ./config.yaml:/app/config.yaml
+      - ./docker-entrypoint-dev.sh:/docker-entrypoint.sh
+    depends_on:
+      - build
+    entrypoint: /docker-entrypoint.sh
+    command: java -jar /app/target/eventception-apiprocessor-1.0-SNAPSHOT-jar-with-dependencies.jar
