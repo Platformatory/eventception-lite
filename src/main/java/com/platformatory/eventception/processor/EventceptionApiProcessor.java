@@ -18,7 +18,7 @@ public class EventceptionApiProcessor {
     public static void main(String[] args) throws Exception {
         // Load YAML configuration
         ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        ServiceConfig config = mapper.readValue(new File("config.dev.yaml"), ServiceConfig.class);
+        ServiceConfig config = mapper.readValue(new File("config.yaml"), ServiceConfig.class);
 
         // Setup Kafka Streams properties
         Properties props = new Properties();

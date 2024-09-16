@@ -41,8 +41,8 @@ topologies:
     processors:
       - type: CelFilter
         name: filter
-        # celExpression: "request.path == '/orders'"
-        celExpression: "client.ip == '172.28.0.1'"
+        celExpression: "request.path == '/orders'"
+        # celExpression: "client.ip == '172.28.0.1'"
       # - type: JSONTransform
       #   transform:
       #     key: "$.request"

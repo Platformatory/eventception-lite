@@ -3,6 +3,7 @@ package com.platformatory.eventception.processor;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.wnameless.json.flattener.JsonFlattener;
 import com.google.common.collect.ImmutableMap;
 // import com.dashjoin.jsonata.JSONata;
 // import com.platformatory.eventception.processor.ServiceConfig.TopologyConfig.OutputConfig;
@@ -67,7 +68,7 @@ public class EventceptionProcessors {
             return objectMapper.readValue(jsonString, Map.class);
         }
 
-        public static CelCompilerBuilder addVariablesToCompiler(CelCompilerBuilder celCompilerBuilder, Map<String, Object> jsonData, String parentKey) {
+        public static CelCompilerBuilder addVariablesToCompiler(CelCompilerBuilder celCompilerBuilder, Map<String, Object> jsonData, String parentKey) throws InvalidProtocolBufferException, JsonProcessingException {
             if (celCompilerBuilder == null) {
                 celCompilerBuilder = CelCompilerFactory.standardCelCompilerBuilder();
             }
@@ -85,13 +86,13 @@ public class EventceptionProcessors {
                     celCompilerBuilder.addVar(key, CelTypes.DOUBLE);
                 } else if (value instanceof Boolean) {
                     celCompilerBuilder.addVar(key, CelTypes.BOOL);
-                }  else if (value instanceof List) {
-                    celCompilerBuilder = addListToCompiler(celCompilerBuilder, key, (List<?>) value);
-                } else if (value instanceof Map) {
-                    // Struct.Builder structBuilder = Struct.newBuilder();
-                    // JsonFormat.parser().merge((String) value, structBuilder);
-                    // Struct struct = structBuilder.build();
-                    // celCompilerBuilder.addVar(parentKey, StructTypeReference.create(struct.getDescriptor().getFullName()));
+                } else if (value instanceof Map || value instanceof List) {
+                    Struct.Builder structBuilder = Struct.newBuilder();
+                    Map<String, Object> val = (Map<String, Object>) value;
+                    log.info("Value String "+new ObjectMapper().writeValueAsString(value));
+                    JsonFormat.parser().merge(new ObjectMapper().writeValueAsString(value), structBuilder);
+                    Struct struct = structBuilder.build();
+                    celCompilerBuilder.addVar(parentKey, StructTypeReference.create(struct.getDescriptor().getFullName()));
                     celCompilerBuilder = addVariablesToCompiler(celCompilerBuilder, (Map<String, Object>) value, key);
                 } else {
                     celCompilerBuilder.addVar(key, CelTypes.DYN);
@@ -100,7 +101,7 @@ public class EventceptionProcessors {
             return celCompilerBuilder;
         }
 
-        public static CelCompilerBuilder addListToCompiler(CelCompilerBuilder celCompilerBuilder, String key, List<?> list) {
+        public static CelCompilerBuilder addListToCompiler(CelCompilerBuilder celCompilerBuilder, String key, List<?> list) throws InvalidProtocolBufferException, JsonProcessingException {
             if (!list.isEmpty()) {
                 Object firstElement = list.get(0);
 
@@ -136,7 +137,7 @@ public class EventceptionProcessors {
                 String key = record.key();
                 String value = record.value();
                 log.info("Processing record for CEL Filter "+value);
-                Map<String, Object> jsonData = parseJson(value);
+                // Map<String, Object> jsonData = parseJson(value);
                 // for (Map.Entry<String, Object> entry : jsonData.entrySet()) {
                 //     String key = entry.getKey();
                 //     Object value = entry.getValue();
@@ -152,7 +153,8 @@ public class EventceptionProcessors {
                 // variables.put("key", Value.newBuilder().setStringValue(key).build());
                 // variables.put("value", Value.newBuilder().setStringValue(value).build());
                 // CelCompilerBuilder celCompilerBuilder = CelCompilerFactory.standardCelCompilerBuilder();
-                CelCompilerBuilder celCompilerBuilder = addVariablesToCompiler(null, jsonData, "");
+                Map<String, Object> flattenedJson = JsonFlattener.flattenAsMap(value);
+                CelCompilerBuilder celCompilerBuilder = addVariablesToCompiler(null, flattenedJson, "");
                 CelCompiler celCompiler = celCompilerBuilder.setResultType(SimpleType.BOOL).build();
                 // Initialize the CEL runtime and parse the CEL expression
                 CelValidationResult parseResult = celCompiler.parse(this.config.getCelExpression());
@@ -164,7 +166,7 @@ public class EventceptionProcessors {
                 CelRuntime.Program program = celRuntime.createProgram(ast);
                 // boolean result = celRuntime.eval(this.celExpression, variables)
                 //                   .getBoolValue();
-                boolean result = (boolean) program.eval(ImmutableMap.copyOf(jsonData));
+                boolean result = (boolean) program.eval(ImmutableMap.copyOf(flattenedJson));
 
                 log.info("CEL Result - "+ result);
                 if (result) {

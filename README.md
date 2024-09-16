@@ -5,18 +5,31 @@ Light weight version of Eventception built with Kafka Streams with a declarative
 ## Setup
 
 ```bash
-cp config.yaml.sample config.yaml
-# Make necessary changes such as bootstrap servers, authentication, etc.
+docker-compose up -d
+# UI is accessible in 9021
+
+# Generate data
+./scripts/01_create_orders.sh
+./scripts/02_update_orders.sh
+
+# Consume CDC
+./scripts/03_consume_cdc_messages.sh
 ```
 
+### Troubleshooting
+
+- If there are no messages in the cdc topic after generating data, check the logs with
 ```bash
-docker-compose up -d build
+docker compose logs eventception-lite
 ```
-
+- If the last line of the log is `State transition from REBALANCING to RUNNING`, try restarting the eventception-lite container with
+```bash
+docker compose restart eventception-lite
+```
 
 ### TODO
 
-- [ ] CEL Filter
+- [x] CEL Filter
 - [ ] Transform processor
 - [x] Logging in Kafka Streams
 - [ ] Support DLQ

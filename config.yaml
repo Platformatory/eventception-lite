@@ -37,18 +37,17 @@ topologies:
     processors:
       - type: CelFilter
         name: filter
-        celExpression: "client_ip == '192.168.32.1'"
+        celExpression: "request.path == '/orders'"
       # - type: JSONTransform
       #   transform:
       #     key: "$.request"
       #     value: "$.response"
       - type: ChangeDataCapture
         name: cdc
-        # keyLookupExpression: "request.id" # Not implemented
+        # keyLookupExpression: "request.id"
     output:
       topic: "orders-cdc"
-      dlq: "'${routeAndTransformDlqTopic}'" # CEL expression for dynamic DLQ evaluation, DLQ not implemented
-      # TODO: DLQ with papi sink processor
+      dlq: "orders-cdc-dlq"
 
 # connectors:
 #   - type: WebhookSink
@@ -60,15 +59,3 @@ topologies:
 #         type: basic # none, basic, bearer
 #         username: demouser
 #         password: OpenSesame
-# TODO: Separate YAML files, k8s style
-
-
-  # - name: change-data-pipeline
-  #   input:
-  #     topics: "cdc-logs-.*" # Regex pattern to subscribe to input topics
-  #   processors:
-  #     - type: change-data
-  #       keyLookupExpression: "request.id"
-  #   output:
-  #     topic: "'${changeDataOutputTopic}'" # CEL expression for dynamic output evaluation
-  #     dlq: "'${changeDataDlqTopic}'" # CEL expression for dynamic DLQ evaluation
