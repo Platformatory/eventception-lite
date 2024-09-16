@@ -1,0 +1,74 @@
+# service:
+name: api-log-processor
+description: Service to process request-response (or network flow) logs from Kafka topic.
+
+kafka:
+  config:
+    bootstrapServers: broker:29092
+    streamsProperties:
+      application.id: "your-application-id"
+      default.key.serde: "org.apache.kafka.common.serialization.Serdes$StringSerde"
+      default.value.serde: "org.apache.kafka.common.serialization.Serdes$StringSerde"
+      state.dir: "/tmp/kafka-streams"
+      consumer:
+        max.poll.records: 500
+        session.timeout.ms: 10000
+      producer:
+        acks: "all"
+        retries: 3
+        batch.size: 16384
+        linger.ms: 1
+      adminClient:
+        retries: 5
+        request.timeout.ms: 30000
+    connectProperties:
+      group.id: "eventception-connect"
+      key.converter: org.apache.kafka.connect.storage.StringConverter
+      value.converter: org.apache.kafka.connect.json.JsonConverter
+    authentication:
+      sasl.mechanism: "PLAIN"
+      security.protocol: "SASL_PLAINTEXT"
+      sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username='admin' password='admin-secret';"
+
+topologies:
+  - name: api-cdc-pipeline
+    input:
+      topics: "api-logs-.*" # Regex pattern to subscribe to input topics
+    processors:
+      - type: CelFilter
+        name: filter
+        celExpression: "client_ip == '192.168.32.1'"
+      # - type: JSONTransform
+      #   transform:
+      #     key: "$.request"
+      #     value: "$.response"
+      - type: ChangeDataCapture
+        name: cdc
+        # keyLookupExpression: "request.id" # Not implemented
+    output:
+      topic: "orders-cdc"
+      dlq: "'${routeAndTransformDlqTopic}'" # CEL expression for dynamic DLQ evaluation, DLQ not implemented
+      # TODO: DLQ with papi sink processor
+
+# connectors:
+#   - type: WebhookSink
+#     name: mylittleservice
+#     config:
+#       url: http://kong:8000/demo
+#       headers: "Content-Type:application/json" # Comma separated
+#       authentication:
+#         type: basic # none, basic, bearer
+#         username: demouser
+#         password: OpenSesame
+# TODO: Separate YAML files, k8s style
+
+
+  # - name: change-data-pipeline
+  #   input:
+  #     topics: "cdc-logs-.*" # Regex pattern to subscribe to input topics
+  #   processors:
+  #     - type: change-data
+  #       keyLookupExpression: "request.id"
+  #   output:
+  #     topic: "'${changeDataOutputTopic}'" # CEL expression for dynamic output evaluation
+  #     dlq: "'${changeDataDlqTopic}'" # CEL expression for dynamic DLQ evaluation

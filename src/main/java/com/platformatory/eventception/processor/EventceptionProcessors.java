@@ -12,8 +12,12 @@ import dev.cel.common.CelAbstractSyntaxTree;
 import dev.cel.common.CelValidationException;
 import dev.cel.common.CelValidationResult;
 import dev.cel.common.ast.Expression;
+import dev.cel.common.types.CelType;
+import dev.cel.common.types.CelTypes;
 import dev.cel.common.types.SimpleType;
+import dev.cel.common.types.StructTypeReference;
 import dev.cel.compiler.CelCompiler;
+import dev.cel.compiler.CelCompilerBuilder;
 import dev.cel.compiler.CelCompilerFactory;
 import dev.cel.expr.ExprValue;
 import dev.cel.expr.Value;
@@ -34,84 +38,150 @@ import org.apache.kafka.streams.processor.api.ProcessorContext;
 import org.apache.kafka.streams.processor.api.Record;
 // import org.apache.kafka.streams.processor.To;
 import org.apache.kafka.streams.state.KeyValueStore;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.Struct;
+import com.google.protobuf.util.JsonFormat;
 
 public class EventceptionProcessors {
 
     public static class CelFilter implements Processor<String, String, String, String> {
 
-    private ProcessorContext<String, String> context;
-    private ProcessorConfig config;
+        private static final Logger log = LoggerFactory.getLogger(CelFilter.class);
 
-    public CelFilter(ProcessorConfig config) {
-        this.config = config;
-    }
+        private ProcessorContext<String, String> context;
+        private ProcessorConfig config;
 
-    public static Map<String, Object> parseJson(String jsonString) throws JsonMappingException, JsonProcessingException {
-        ObjectMapper objectMapper = new ObjectMapper();
-        return objectMapper.readValue(jsonString, Map.class);
-    }
-
-    @Override
-    public void init(ProcessorContext<String, String> context) {
-        this.context = context;
-    }
-
-    @Override
-    public void process(Record<String, String> record) {
-        try {
-            String key = record.key();
-            String value = record.value();
-            Map<String, Object> jsonData = parseJson(value);
-            // Prepare the data to evaluate
-            // for (Map.Entry<String, Object> entry : jsonData.entrySet()) {
-            //     String key = entry.getKey();
-            //     Object value = entry.getValue();
-
-            //     // Create a CEL variable
-            //     ExprValue celVar = ExprValue.of(value); // auto infers CEL type
-
-            //     // Add the variable to CEL environment
-            //     celRuntime.setVariable(key, celVar);
-            // }
-            // Activation activation = Activation.of(null, ImmutableMap.copyOf(jsonData));
-            // Map<String, Value> variables = new HashMap<>();
-            // variables.put("key", Value.newBuilder().setStringValue(key).build());
-            // variables.put("value", Value.newBuilder().setStringValue(value).build());
-            CelCompiler celCompiler = CelCompilerFactory.standardCelCompilerBuilder().setResultType(SimpleType.BOOL).build();
-            // Initialize the CEL runtime and parse the CEL expression
-            CelValidationResult parseResult = celCompiler.parse(this.config.getCelExpression());
-            CelValidationResult checkResult = celCompiler.check(parseResult.getAst());
-            CelAbstractSyntaxTree ast = checkResult.getAst();
-            CelRuntime celRuntime = CelRuntimeFactory.standardCelRuntimeBuilder().build();
-            // Evaluate the CEL expression
-            CelRuntime.Program program = celRuntime.createProgram(ast);
-            // boolean result = celRuntime.eval(this.celExpression, variables)
-            //                   .getBoolValue();
-            boolean result = (boolean) program.eval(ImmutableMap.copyOf(jsonData));
-
-            // Forward the record if the CEL expression evaluates to true
-            if (result) {
-                context.forward(new Record<>(key, value, record.timestamp()));
-            }
-        } catch (CelEvaluationException e) {
-            // Report any evaluation errors, if present
-            throw new IllegalArgumentException(
-                "Evaluation error has occurred. Reason: " + e.getMessage(), e);
-        } catch (Exception e) {
-            // Log or handle evaluation errors
-            System.err.println("Error evaluating CEL expression: " + e.getMessage());
+        public CelFilter(ProcessorConfig config) {
+            this.config = config;
         }
-    }
 
-    @Override
-    public void close() {
-        // Cleanup resources if necessary
-    }
+        public static Map<String, Object> parseJson(String jsonString) throws JsonMappingException, JsonProcessingException {
+            ObjectMapper objectMapper = new ObjectMapper();
+            return objectMapper.readValue(jsonString, Map.class);
+        }
 
-}
+        public static CelCompilerBuilder addVariablesToCompiler(CelCompilerBuilder celCompilerBuilder, Map<String, Object> jsonData, String parentKey) {
+            if (celCompilerBuilder == null) {
+                celCompilerBuilder = CelCompilerFactory.standardCelCompilerBuilder();
+            }
+            for (Map.Entry<String, Object> entry : jsonData.entrySet()) {
+                String key = parentKey.isEmpty() ? entry.getKey() : parentKey + "." + entry.getKey();
+                Object value = entry.getValue();
+
+                if (value instanceof String) {
+                    celCompilerBuilder.addVar(key, CelTypes.STRING);
+                } else if (value instanceof Integer) {
+                    celCompilerBuilder.addVar(key, CelTypes.INT64);
+                } else if (value instanceof Long) {
+                    celCompilerBuilder.addVar(key, CelTypes.INT64);
+                } else if (value instanceof Double) {
+                    celCompilerBuilder.addVar(key, CelTypes.DOUBLE);
+                } else if (value instanceof Boolean) {
+                    celCompilerBuilder.addVar(key, CelTypes.BOOL);
+                } else if (value instanceof Map || value instanceof List) {
+                    // Struct.Builder structBuilder = Struct.newBuilder();
+                    // JsonFormat.parser().merge((String) value, structBuilder);
+                    // Struct struct = structBuilder.build();
+                    // celCompilerBuilder.addVar(parentKey, StructTypeReference.create(struct.getDescriptor().getFullName()));
+                    celCompilerBuilder = addVariablesToCompiler(celCompilerBuilder, (Map<String, Object>) value, key);
+                } else {
+                    celCompilerBuilder.addVar(key, CelTypes.DYN);
+                }
+            }
+            return celCompilerBuilder;
+        }
+
+        public static CelCompilerBuilder addListToCompiler(CelCompilerBuilder celCompilerBuilder, String key, List<?> list) {
+            if (!list.isEmpty()) {
+                Object firstElement = list.get(0);
+
+                if (firstElement instanceof String) {
+                    celCompilerBuilder.addVar(key, CelTypes.createList(CelTypes.STRING));
+                } else if (firstElement instanceof Integer) {
+                    celCompilerBuilder.addVar(key, CelTypes.createList(CelTypes.INT64));
+                } else if (firstElement instanceof Double) {
+                    celCompilerBuilder.addVar(key, CelTypes.createList(CelTypes.DOUBLE));
+                } else if (firstElement instanceof Boolean) {
+                    celCompilerBuilder.addVar(key, CelTypes.createList(CelTypes.BOOL));
+                } else if (firstElement instanceof Map) {
+                    addVariablesToCompiler(celCompilerBuilder, (Map<String, Object>) firstElement, key);
+                } else {
+                    // Handle other types as dynamic lists
+                    celCompilerBuilder.addVar(key, CelTypes.createList(CelTypes.DYN));
+                }
+            } else {
+                celCompilerBuilder.addVar(key, CelTypes.createList(CelTypes.DYN));
+            }
+            return celCompilerBuilder;
+        }
+        
+
+        @Override
+        public void init(ProcessorContext<String, String> context) {
+            this.context = context;
+        }
+
+        @Override
+        public void process(Record<String, String> record) {
+            try {
+                String key = record.key();
+                String value = record.value();
+                log.info("Processing record for CEL Filter "+value);
+                Map<String, Object> jsonData = parseJson(value);
+                // for (Map.Entry<String, Object> entry : jsonData.entrySet()) {
+                //     String key = entry.getKey();
+                //     Object value = entry.getValue();
+
+                //     // Create a CEL variable
+                //     ExprValue celVar = ExprValue.of(value); // auto infers CEL type
+
+                //     // Add the variable to CEL environment
+                //     celRuntime.setVariable(key, celVar);
+                // }
+                // Activation activation = Activation.of(null, ImmutableMap.copyOf(jsonData));
+                // Map<String, Value> variables = new HashMap<>();
+                // variables.put("key", Value.newBuilder().setStringValue(key).build());
+                // variables.put("value", Value.newBuilder().setStringValue(value).build());
+                // CelCompilerBuilder celCompilerBuilder = CelCompilerFactory.standardCelCompilerBuilder();
+                CelCompilerBuilder celCompilerBuilder = addVariablesToCompiler(null, jsonData, "");
+                CelCompiler celCompiler = celCompilerBuilder.setResultType(SimpleType.BOOL).build();
+                // Initialize the CEL runtime and parse the CEL expression
+                CelValidationResult parseResult = celCompiler.parse(this.config.getCelExpression());
+                CelValidationResult checkResult = celCompiler.check(parseResult.getAst());
+                CelAbstractSyntaxTree ast = checkResult.getAst();
+                
+                CelRuntime celRuntime = CelRuntimeFactory.standardCelRuntimeBuilder().build();
+                // Evaluate the CEL expression
+                CelRuntime.Program program = celRuntime.createProgram(ast);
+                // boolean result = celRuntime.eval(this.celExpression, variables)
+                //                   .getBoolValue();
+                boolean result = (boolean) program.eval(ImmutableMap.copyOf(jsonData));
+
+                log.info("CEL Result - "+ result);
+                if (result) {
+                    context.forward(new Record<>(key, value, record.timestamp()));
+                }
+            } catch (CelEvaluationException e) {
+                throw new IllegalArgumentException(
+                    "Evaluation error has occurred. Reason: " + e.getMessage(), e);
+            } catch (Exception e) {
+                log.error("Error evaluating CEL expression: " + e);
+            }
+        }
+
+        @Override
+        public void close() {
+            
+        }
+
+    }
 
     // public static class CELFilter extends AbstractProcessor<String, String> {
     //     private final ProcessorConfig config;
@@ -184,6 +254,7 @@ public class EventceptionProcessors {
     // }
 
     public static class ChangeDataCapture implements Processor<String, String, String, String> {
+        private static final Logger log = LoggerFactory.getLogger(ChangeDataCapture.class);
         private final ProcessorConfig config;
         private ProcessorContext<String, String> context;
         private KeyValueStore<String, String> stateStore;
@@ -202,10 +273,13 @@ public class EventceptionProcessors {
         public void process(Record<String, String> record) {
             String beforeImage = stateStore.get(record.key());
             String afterImage = record.value();
-            Map<String, Object> diff = calculateDiff(beforeImage, afterImage);
+            log.info("Processing record for CDC " + afterImage);
+            if (!afterImage.equals(beforeImage)) {
+            // Map<String, Object> diff = calculateDiff(beforeImage, afterImage);
 
-            context.forward(new Record<>(record.key(), String.format("Before: %s, After: %s, Diff: %s", beforeImage, afterImage, diff), record.timestamp()));
-            stateStore.put(record.key(), afterImage);
+                context.forward(new Record<>(record.key(), String.format("{\"before\": %s, \"after\": %s, \"timestamp\": %s}", beforeImage, afterImage, record.timestamp()), record.timestamp()));
+                stateStore.put(record.key(), afterImage);
+            }
         }
 
         private Map<String, Object> calculateDiff(String beforeImage, String afterImage) {

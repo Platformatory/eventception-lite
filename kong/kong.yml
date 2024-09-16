@@ -1,0 +1,100 @@
+_format_version: "2.1"
+services:
+- name: "eventception-backend"
+  url: http://eventception-backend:8000
+  routes:
+  - name: backend
+    paths:
+    - /    
+- name: "kong-admin"
+  url: http://kong:8001
+  routes:
+  - name: admin
+    paths:
+    - /admin
+  plugins:
+  - name: basic-auth
+    config:
+      hide_credentials: true
+- name: "kong-admin-api-key"
+  url: http://kong:8001
+  routes:
+  - name: admin-api-key
+    paths:
+    - /admin-key
+  plugins:
+  - name: key-auth
+    config:
+      key_names: [securekey]
+      key_in_query: false
+- name: "orders-microservice"
+  url: http://httpbin.org/anything
+  routes:
+  - name: create-orders
+    paths:
+    - /orders
+    methods:
+    - POST
+  - name: update-orders
+    paths:
+    - /orders
+    methods:
+    - PUT
+- name: "demo-webhook"
+  url: http://httpbin.org/post
+  routes:
+  - name: demo-webhook
+    paths:
+    - /demo
+  # plugins:
+  # - name: basic-auth
+  #   config:
+  #     hide_credentials: true
+plugins:
+- name: basic-auth
+  route: backend
+  config:
+    hide_credentials: true
+- name: kong-event-pub
+  service: orders-microservice
+  config:
+    bootstrap_servers: broker
+    port: 29092
+    ssl: false
+    sasl_user: 'admin'
+    sasl_password: 'admin-secret'
+    # bootstrap_servers: "pkc-p11xm.us-east-1.aws.confluent.cloud"
+    # port: 9092
+    # ssl: true
+    # sasl_mechanism: "PLAIN"
+    # sasl_user: '4X7U6FFNZA3YVKEY'
+    # sasl_password: 'e8EgQMlWvcb/iaL5jUZSE9UDD0sQFcksjC1jBoao+lLWosyCDw78oEjbMA4tv9yJ'
+    #    encoding: "application/json"
+    eventkey: '{{request.path}}'
+    # eventval: '{"specversion": "1.0", "action": "place-order", "source": "{{ client.ip }}", "id": "{{request.body.order_id}}", "time": "{{response.headers.date}}"}'
+    # eventval: '{ "route": { "path_handling": "{{route.path_handling}}", "regex_priority": {{route.regex_priority}}, "request_buffering": {{route.request_buffering}}, "response_buffering": {{route.response_buffering}}, "created_at": {{route.created_at}}, "updated_at": {{route.updated_at}}, "https_redirect_status_code": {{route.https_redirect_status_code}}, "service": { "id": "{{route.service.id}}" }, "name": "{{route.name}}", "strip_path": {{route.strip_path}}, "id": "{{route.name}}", "preserve_host": {{route.name}}, "ws_id": "{{route.name}}" }, "response": {{response}}, "request": { "method": "{{request.method}}", "path": "{{request.path}}", "headers": {{request.headers}}, "body": {{request.body}}, "time": {{request.time}}, "correlation_id": "{{request.correlation_id}}", "query": {{request.query}} }, "client": {{client}}, "service": {{service}} }'
+    # eventval: '{ "route": { "path_handling": "{{route.path_handling}}", "regex_priority": "{{route.regex_priority}}", "request_buffering": "{{route.request_buffering}}", "response_buffering": "{{route.response_buffering}}", "created_at": "{{route.created_at}}", "updated_at": "{{route.updated_at}}", "https_redirect_status_code": "{{route.https_redirect_status_code}}", "service": { "id": "{{route.service.id}}" }, "name": "{{route.name}}", "strip_path": "{{route.strip_path}}", "id": "{{route.name}}", "preserve_host": "{{route.name}}", "ws_id": "{{route.name}}" }, "response": "{{response}}", "request": { "method": "{{request.method}}", "path": "{{request.path}}", "headers": "{{request.headers}}", "body": "{{request.body}}", "time": "{{request.time}}", "correlation_id": "{{request.correlation_id}}", "query": "{{request.query}}" }, "client": "{{client}}", "service": "{{service}}" }'
+    eventval: '{ "client": "{{client}}", "client_ip": "{{client.ip}}" }'
+    topic: 'api-logs-orders' 
+consumers:
+- username: sdkuser
+  custom_id: sdk_user
+  basicauth_credentials:
+  - username: sdkuser
+    password: OpenSesame
+- username: eventception
+  custom_id: eventception
+  basicauth_credentials:
+  - username: eventception
+    password: OpenSesame
+- username: demouser
+  custom_id: demo_user
+  basicauth_credentials:
+  - username: demouser
+    password: OpenSesame
+- username: admin_key
+  custom_id: admin_key
+keyauth_credentials:
+- consumer: admin_key
+  ttl: 5000
+  key: OpenSesame

@@ -44,15 +44,16 @@ public class ServiceConfig {
     }
 
     public static class Kafka {
-        private StreamsConfig streamsConfig;
+        private Config config;
         
 
-        public static class StreamsConfig {
+        public static class Config {
             private String bootstrapServers;
-            private Properties properties;
+            private StreamsProperties streamsProperties;
+            private Map<String, String> connectProperties;
             private Map<String, String> authentication;
 
-            public static class Properties {
+            public static class StreamsProperties {
                 @JsonProperty("application.id")
                 private String applicationId;
                 @JsonProperty("default.key.serde")
@@ -131,12 +132,12 @@ public class ServiceConfig {
                 this.bootstrapServers = bootstrapServers;
             }
 
-            public Properties getProperties() {
-                return properties;
+            public StreamsProperties getStreamsProperties() {
+                return streamsProperties;
             }
 
-            public void setProperties(Properties properties) {
-                this.properties = properties;
+            public void setStreamsProperties(StreamsProperties streamsProperties) {
+                this.streamsProperties = streamsProperties;
             }
 
             public Map<String, String> getAuthentication() {
@@ -147,42 +148,22 @@ public class ServiceConfig {
                 this.authentication = authentication;
             }
 
-            public static class Authentication {
-                @JsonProperty("sasl.mechanism")
-                private String saslMechanism;
-                @JsonProperty("security.protocol")
-                private String securityProtocol;
-                @JsonProperty("sasl.jaas.config")
-                private String saslJaasConfig;
-                public String getSaslMechanism() {
-                    return saslMechanism;
-                }
-                public void setSaslMechanism(String saslMechanism) {
-                    this.saslMechanism = saslMechanism;
-                }
-                public String getSecurityProtocol() {
-                    return securityProtocol;
-                }
-                public void setSecurityProtocol(String securityProtocol) {
-                    this.securityProtocol = securityProtocol;
-                }
-                public String getSaslJaasConfig() {
-                    return saslJaasConfig;
-                }
-                public void setSaslJaasConfig(String saslJaasConfig) {
-                    this.saslJaasConfig = saslJaasConfig;
-                }
-
-                
+            public Map<String, String> getConnectProperties() {
+                return connectProperties;
             }
+
+            public void setConnectProperties(Map<String, String> connectProperties) {
+                this.connectProperties = connectProperties;
+            }
+            
         }
 
-        public StreamsConfig getStreamsConfig() {
-            return streamsConfig;
+        public Config getConfig() {
+            return config;
         }
 
-        public void setStreamsConfig(StreamsConfig streamsConfig) {
-            this.streamsConfig = streamsConfig;
+        public void setConfig(Config config) {
+            this.config = config;
         }
     }
 
@@ -331,6 +312,7 @@ public class ServiceConfig {
         public static class OutputConfig {
             private String topic;
             private String dlq;
+            private List<Sink> sinks;
             public String getTopic() {
                 return topic;
             }
@@ -343,8 +325,40 @@ public class ServiceConfig {
             public void setDlq(String dlq) {
                 this.dlq = dlq;
             }
-
             
+            
+            public static class Sink {
+                private String type;
+                private String name;
+                private Map<String, Object> config;
+                public String getType() {
+                    return type;
+                }
+                public void setType(String type) {
+                    this.type = type;
+                }
+                public String getName() {
+                    return name;
+                }
+                public void setName(String name) {
+                    this.name = name;
+                }
+                public Map<String, Object> getConfig() {
+                    return config;
+                }
+                public void setConfig(Map<String, Object> config) {
+                    this.config = config;
+                }
+                
+            }
+
+
+            public List<Sink> getSinks() {
+                return sinks;
+            }
+            public void setSinks(List<Sink> sinks) {
+                this.sinks = sinks;
+            }
         }
     }
 }

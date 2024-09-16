@@ -18,6 +18,6 @@ docker-compose up -d build
 
 - [ ] CEL Filter
 - [ ] Transform processor
-- [ ] Logging in Kafka Streams
+- [x] Logging in Kafka Streams
 - [ ] Support DLQ
 - [ ] keyLookupExpression in CDC

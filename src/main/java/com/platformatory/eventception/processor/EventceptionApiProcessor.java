@@ -3,6 +3,7 @@ package com.platformatory.eventception.processor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.platformatory.eventception.processor.ServiceConfig.TopologyConfig;
+import com.platformatory.eventception.processor.ServiceConfig.TopologyConfig.OutputConfig.Sink;
 
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KafkaStreams;
@@ -17,30 +18,37 @@ public class EventceptionApiProcessor {
     public static void main(String[] args) throws Exception {
         // Load YAML configuration
         ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        ServiceConfig config = mapper.readValue(new File("config.yaml"), ServiceConfig.class);
+        ServiceConfig config = mapper.readValue(new File("config.dev.yaml"), ServiceConfig.class);
 
         // Setup Kafka Streams properties
         Properties props = new Properties();
-        props.put(StreamsConfig.APPLICATION_ID_CONFIG, config.getKafka().getStreamsConfig().getProperties().getApplicationId());
-        props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, config.getKafka().getStreamsConfig().getBootstrapServers());
+        props.put(StreamsConfig.APPLICATION_ID_CONFIG, config.getKafka().getConfig().getStreamsProperties().getApplicationId());
+        props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, config.getKafka().getConfig().getBootstrapServers());
         props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass());
         props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass());
-        props.put(StreamsConfig.STATE_DIR_CONFIG, config.getKafka().getStreamsConfig().getProperties().getStateDir());
+        props.put(StreamsConfig.STATE_DIR_CONFIG, config.getKafka().getConfig().getStreamsProperties().getStateDir());
 
         // Add prefixed properties
-        config.getKafka().getStreamsConfig().getProperties().getConsumer().forEach((key, value) -> 
+        config.getKafka().getConfig().getStreamsProperties().getConsumer().forEach((key, value) -> 
             props.put("consumer." + key, value));
-        config.getKafka().getStreamsConfig().getProperties().getProducer().forEach((key, value) -> 
+        config.getKafka().getConfig().getStreamsProperties().getProducer().forEach((key, value) -> 
             props.put("producer." + key, value));
-        config.getKafka().getStreamsConfig().getProperties().getAdminClient().forEach((key, value) -> 
+        config.getKafka().getConfig().getStreamsProperties().getAdminClient().forEach((key, value) -> 
             props.put("admin." + key, value));
-        config.getKafka().getStreamsConfig().getAuthentication().forEach((key, value) -> 
+        config.getKafka().getConfig().getAuthentication().forEach((key, value) -> 
             props.put(key, value));
 
         
 
         // for (TopologyConfig topologyConfig : config.getTopologies()) {
             TopologyConfig topologyConfig = config.getTopologies().get(0);
+            EventceptionConnectWorkerBuilder.startConnectWorker(config.getKafka().getConfig());
+            // for (Sink sink : topologyConfig.getOutput().getSinks()) {
+            //     // TODO: Wait for connect to start
+            //     if (sink.getType() == "Webhook") {
+            //         EventceptionConnectors.createWebHookConnector(sink, topologyConfig.getOutput().getTopic());
+            //     }
+            // }
             // Build the topology
             Topology topology = EventceptionTopologyBuilder.buildTopology(topologyConfig);
 
