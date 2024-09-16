@@ -85,7 +85,9 @@ public class EventceptionProcessors {
                     celCompilerBuilder.addVar(key, CelTypes.DOUBLE);
                 } else if (value instanceof Boolean) {
                     celCompilerBuilder.addVar(key, CelTypes.BOOL);
-                } else if (value instanceof Map || value instanceof List) {
+                }  else if (value instanceof List) {
+                    celCompilerBuilder = addListToCompiler(celCompilerBuilder, key, (List<?>) value);
+                } else if (value instanceof Map) {
                     // Struct.Builder structBuilder = Struct.newBuilder();
                     // JsonFormat.parser().merge((String) value, structBuilder);
                     // Struct struct = structBuilder.build();
