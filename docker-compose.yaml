@@ -1,7 +1,7 @@
 version: "3.8"
 services:
   eventception-lite:
-    image: platformatorylabs/eventception-lite:0.0.4-dev
+    image: platformatorylabs/eventception-lite:arm64
     container_name: eventception-lite
     volumes:
       - ./config.yaml:/app/config.yaml
