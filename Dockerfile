@@ -1,4 +1,4 @@
-FROM maven:3.8.7-openjdk-18 AS build
+FROM arm64v8/maven:3.8.7-openjdk-18 AS build
 
 WORKDIR /app
 
@@ -7,7 +7,7 @@ COPY src ./src
 
 RUN mvn clean package -DskipTests
 
-FROM confluentinc/cp-kafka-connect:7.5.0
+FROM confluentinc/cp-kafka-connect:7.5.0.arm64
 
 USER root
 
