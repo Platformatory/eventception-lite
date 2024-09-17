@@ -15,11 +15,9 @@ import java.util.Properties;
 public class EventceptionApiProcessor {
 
     public static void main(String[] args) throws Exception {
-        // Load YAML configuration
         ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
         ServiceConfig config = mapper.readValue(new File("config.yaml"), ServiceConfig.class);
 
-        // Setup Kafka Streams properties
         Properties props = new Properties();
         props.put(StreamsConfig.APPLICATION_ID_CONFIG, config.getKafka().getConfig().getStreamsProperties().getApplicationId());
         props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, config.getKafka().getConfig().getBootstrapServers());
@@ -27,7 +25,6 @@ public class EventceptionApiProcessor {
         props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass());
         props.put(StreamsConfig.STATE_DIR_CONFIG, config.getKafka().getConfig().getStreamsProperties().getStateDir());
 
-        // Add prefixed properties
         config.getKafka().getConfig().getStreamsProperties().getConsumer().forEach((key, value) -> 
             props.put("consumer." + key, value));
         config.getKafka().getConfig().getStreamsProperties().getProducer().forEach((key, value) -> 
@@ -48,12 +45,9 @@ public class EventceptionApiProcessor {
             //         EventceptionConnectors.createWebHookConnector(sink, topologyConfig.getOutput().getTopic());
             //     }
             // }
-            // Build the topology
             Topology topology = EventceptionTopologyBuilder.buildTopology(topologyConfig);
 
             topology.describe();
-
-            // Create the Kafka Streams instance
             KafkaStreams streams = new KafkaStreams(topology, props);
 
             // Add custom JMX metrics
@@ -63,10 +57,8 @@ public class EventceptionApiProcessor {
             //     metrics.addRateTotalSensor("custom-throughput", "throughput", "description", RecordingLevel.INFO);
             // });
 
-            // Start the Kafka Streams application
             streams.start();
 
-            // Add shutdown hook
             Runtime.getRuntime().addShutdownHook(new Thread(streams::close));
         // }
     }
