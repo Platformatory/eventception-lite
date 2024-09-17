@@ -137,35 +137,15 @@ public class EventceptionProcessors {
                 String key = record.key();
                 String value = record.value();
                 log.info("Processing record for CEL Filter "+value);
-                // Map<String, Object> jsonData = parseJson(value);
-                // for (Map.Entry<String, Object> entry : jsonData.entrySet()) {
-                //     String key = entry.getKey();
-                //     Object value = entry.getValue();
-
-                //     // Create a CEL variable
-                //     ExprValue celVar = ExprValue.of(value); // auto infers CEL type
-
-                //     // Add the variable to CEL environment
-                //     celRuntime.setVariable(key, celVar);
-                // }
-                // Activation activation = Activation.of(null, ImmutableMap.copyOf(jsonData));
-                // Map<String, Value> variables = new HashMap<>();
-                // variables.put("key", Value.newBuilder().setStringValue(key).build());
-                // variables.put("value", Value.newBuilder().setStringValue(value).build());
-                // CelCompilerBuilder celCompilerBuilder = CelCompilerFactory.standardCelCompilerBuilder();
                 Map<String, Object> flattenedJson = JsonFlattener.flattenAsMap(value);
                 CelCompilerBuilder celCompilerBuilder = addVariablesToCompiler(null, flattenedJson, "");
                 CelCompiler celCompiler = celCompilerBuilder.setResultType(SimpleType.BOOL).build();
-                // Initialize the CEL runtime and parse the CEL expression
                 CelValidationResult parseResult = celCompiler.parse(this.config.getCelExpression());
                 CelValidationResult checkResult = celCompiler.check(parseResult.getAst());
                 CelAbstractSyntaxTree ast = checkResult.getAst();
                 
                 CelRuntime celRuntime = CelRuntimeFactory.standardCelRuntimeBuilder().build();
-                // Evaluate the CEL expression
                 CelRuntime.Program program = celRuntime.createProgram(ast);
-                // boolean result = celRuntime.eval(this.celExpression, variables)
-                //                   .getBoolValue();
                 boolean result = (boolean) program.eval(ImmutableMap.copyOf(flattenedJson));
 
                 log.info("CEL Result - "+ result);
@@ -173,10 +153,14 @@ public class EventceptionProcessors {
                     context.forward(new Record<>(key, value, record.timestamp()));
                 }
             } catch (CelEvaluationException e) {
-                throw new IllegalArgumentException(
-                    "Evaluation error has occurred. Reason: " + e.getMessage(), e);
+                log.error("Evaluation error has occurred. Reason: " + e.getMessage(), e);
+                Record<String, String> dlqRecord = record.withHeaders(record.headers().add("error-message", e.getMessage().getBytes()));
+                context.forward(dlqRecord, "dlq-processor");
+                
             } catch (Exception e) {
                 log.error("Error evaluating CEL expression: " + e);
+                Record<String, String> dlqRecord = record.withHeaders(record.headers().add("error-message", e.getMessage().getBytes()));
+                context.forward(dlqRecord, "dlq-processor");
             }
         }
 
@@ -279,7 +263,12 @@ public class EventceptionProcessors {
             String afterImage = record.value();
             log.info("Processing record for CDC " + afterImage);
             if (!afterImage.equals(beforeImage)) {
-            // Map<String, Object> diff = calculateDiff(beforeImage, afterImage);
+                // try{
+                //     Map<String, Object> diff = calculateDiff(beforeImage, afterImage);
+                // } catch(Exception e) {
+                //     Record<String, String> dlqRecord = record.withHeaders(record.headers().add("error-message", e.getMessage().getBytes()));
+                //     context.forward(dlqRecord, "dlq-processor");
+                // }
 
                 context.forward(new Record<>(record.key(), String.format("{\"before\": %s, \"after\": %s, \"timestamp\": %s}", beforeImage, afterImage, record.timestamp()), record.timestamp()));
                 stateStore.put(record.key(), afterImage);
@@ -315,6 +304,8 @@ public class EventceptionProcessors {
             return diff;
         }
     }
+
+    
 
     // public static class SinkProcessor implements Processor<String, String, String, String> {
     //     private final OutputConfig outputConfig;

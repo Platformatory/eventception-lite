@@ -16,6 +16,8 @@ import com.platformatory.eventception.processor.ServiceConfig.TopologyConfig.Pro
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Pattern;
 
 public class EventceptionTopologyBuilder {
@@ -26,6 +28,7 @@ public class EventceptionTopologyBuilder {
             
             topology.addSource("source", Pattern.compile(topologyConfig.getInput().getTopics()));
             String parentProcessorName = "source";
+            ArrayList<String> processorNames = new ArrayList<String>();
             try {
                 for (ProcessorConfig processorConfig : topologyConfig.getProcessors()) {
                     String className = "com.platformatory.eventception.processor.EventceptionProcessors$"+processorConfig.getType();
@@ -34,6 +37,7 @@ public class EventceptionTopologyBuilder {
                     Constructor<?> constructor = clazz.getConstructor(ProcessorConfig.class);
                     topology.addProcessor(processorName, () -> {
                         try {
+                            processorNames.add(processorName);
                             return (Processor<String, String, String, String>) constructor.newInstance(processorConfig);
                         } catch (InstantiationException | IllegalAccessException | IllegalArgumentException
                                 | InvocationTargetException e) {
@@ -56,12 +60,13 @@ public class EventceptionTopologyBuilder {
             } catch (Exception e) {
                 throw new RuntimeException("Failed to initialize processors", e);
             }
-            
+            topology.addProcessor("dlq-processor", () -> new DlqProcessor(), processorNames.toArray(new String[0]));
 
             
 
             // TODO: Handle DLQ
             topology.addSink("sink", topologyConfig.getOutput().getTopic(), parentProcessorName);
+            topology.addSink("dlq", topologyConfig.getOutput().getDlq(), "dlq-processor");
 
             return topology;
 

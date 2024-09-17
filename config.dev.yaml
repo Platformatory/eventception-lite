@@ -52,7 +52,7 @@ topologies:
         keyLookupExpression: "request.id" # Not implemented
     output:
       topic: "orders-cdc" # CEL expression for dynamic output evaluation, CEL expression not implemented
-      dlq: "'${routeAndTransformDlqTopic}'" # CEL expression for dynamic DLQ evaluation, DLQ not implemented
+      dlq: "orders-cdc-dlq" # CEL expression for dynamic DLQ evaluation
       # TODO: DLQ with papi sink processor
 
 # connectors:
