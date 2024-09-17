@@ -30,7 +30,10 @@ docker compose restart eventception-lite
 ### TODO
 
 - [x] CEL Filter
-- [ ] Transform processor
+- [x] Transform processor
 - [x] Logging in Kafka Streams
 - [x] Support DLQ
 - [ ] keyLookupExpression in CDC
+- [ ] Output connectors
+- [ ] CEL expression for output topic
+- [ ] Separate YAML files for config, k8s style

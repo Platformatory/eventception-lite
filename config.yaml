@@ -37,11 +37,12 @@ topologies:
     processors:
       - type: CelFilter
         name: filter
-        celExpression: "request.path == '/orders'"
-      # - type: JSONTransform
-      #   transform:
-      #     key: "$.request"
-      #     value: "$.response"
+        celExpression: "request.path == '/orders' && (response.status == 200 || response.status == 201)"
+      - type: JSONTransform
+        name: transform
+        transform:
+          key: '$join([$substring(request.path, 1), "-", request.body.order_id])'
+          value: '{"specversion": "1.0", "action": request.method="POST" ? "create-order": request.method="PUT" ? "update-order" : "unkown", "source": client.ip, "id": request.body.order_id, "orderplaced": $fromMillis(request.time), "orderprocessed": response.headers.date, "order_quantity": request.body.quantity}'
       - type: ChangeDataCapture
         name: cdc
         # keyLookupExpression: "request.id"

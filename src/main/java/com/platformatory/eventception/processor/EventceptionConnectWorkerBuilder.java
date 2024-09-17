@@ -35,7 +35,7 @@ public class EventceptionConnectWorkerBuilder {
         ProcessBuilder processBuilder = new ProcessBuilder("connect-distributed", "connect-distributed.properties");
 
         try {
-            // Start the Kafka Connect distributed process
+            // Start the Kafka Connect distributed process in the background
             Process process = processBuilder.start();
             Thread outputThread = new Thread(() -> {
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
@@ -59,7 +59,6 @@ public class EventceptionConnectWorkerBuilder {
                 }
             });
 
-            // Start the threads
             outputThread.start();
             errorThread.start();
 

@@ -41,19 +41,19 @@ topologies:
     processors:
       - type: CelFilter
         name: filter
-        celExpression: "request.path == '/orders'"
-        # celExpression: "client.ip == '172.28.0.1'"
-      # - type: JSONTransform
-      #   transform:
-      #     key: "$.request"
-      #     value: "$.response"
+        celExpression: "request.path == '/orders' && (response.status == 200 || response.status == 201)"
+      - type: JSONTransform
+        name: transform
+        transform:
+          key: '$join([$substring(request.path, 1), "-", request.body.order_id])'
+          value: '{"specversion": "1.0", "action": request.method="POST" ? "create-order": request.method="PUT" ? "update-order" : "unkown", "source": client.ip, "id": request.body.order_id, "orderplaced": $fromMillis(request.time), "orderprocessed": response.headers.date, "order_quantity": request.body.quantity}'
+          # value: '{"specversion": "1.0", "action": request.method="POST" ? "create-order": request.method="PUT" ? "update-order" : "unkown", "source": client.ip, "id": request.body.order_id, "orderplaced": $fromMillis(request.time, "[FNn,3], [D01] [MNn,3] [Y0001] [h01]:[m01]:[s01] [z]"), "orderprocessed": response.headers.date}'
       - type: ChangeDataCapture
         name: cdc
         keyLookupExpression: "request.id" # Not implemented
     output:
       topic: "orders-cdc" # CEL expression for dynamic output evaluation, CEL expression not implemented
       dlq: "orders-cdc-dlq" # CEL expression for dynamic DLQ evaluation
-      # TODO: DLQ with papi sink processor
 
 # connectors:
 #   - type: WebhookSink

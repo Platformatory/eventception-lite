@@ -1,50 +1,39 @@
 package com.platformatory.eventception.processor;
 
+import com.dashjoin.jsonata.Jsonata;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.wnameless.json.flattener.JsonFlattener;
 import com.google.common.collect.ImmutableMap;
-// import com.dashjoin.jsonata.JSONata;
-// import com.platformatory.eventception.processor.ServiceConfig.TopologyConfig.OutputConfig;
 import com.platformatory.eventception.processor.ServiceConfig.TopologyConfig.ProcessorConfig;
 
 import dev.cel.common.CelAbstractSyntaxTree;
 import dev.cel.common.CelValidationException;
 import dev.cel.common.CelValidationResult;
-import dev.cel.common.ast.Expression;
-import dev.cel.common.types.CelType;
 import dev.cel.common.types.CelTypes;
 import dev.cel.common.types.SimpleType;
 import dev.cel.common.types.StructTypeReference;
 import dev.cel.compiler.CelCompiler;
 import dev.cel.compiler.CelCompilerBuilder;
 import dev.cel.compiler.CelCompilerFactory;
-import dev.cel.expr.ExprValue;
-import dev.cel.expr.Value;
-import dev.cel.parser.CelParser;
-import dev.cel.parser.CelParserFactory;
-import dev.cel.runtime.Activation;
 import dev.cel.runtime.CelEvaluationException;
 import dev.cel.runtime.CelRuntime;
 import dev.cel.runtime.CelRuntimeFactory;
 
-import org.apache.kafka.streams.processor.To;
-// import dev.cel.expr.CEL;
-// import dev.cel.expr.CELBuilder;
-// import dev.cel.expr.ExprValue;
-// import org.apache.kafka.streams.processor.AbstractProcessor;
 import org.apache.kafka.streams.processor.api.Processor;
 import org.apache.kafka.streams.processor.api.ProcessorContext;
 import org.apache.kafka.streams.processor.api.Record;
-// import org.apache.kafka.streams.processor.To;
 import org.apache.kafka.streams.state.KeyValueStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.lang.reflect.Array;
 import java.util.Map;
+import java.util.Collection;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Struct;
@@ -61,11 +50,6 @@ public class EventceptionProcessors {
 
         public CelFilter(ProcessorConfig config) {
             this.config = config;
-        }
-
-        public static Map<String, Object> parseJson(String jsonString) throws JsonMappingException, JsonProcessingException {
-            ObjectMapper objectMapper = new ObjectMapper();
-            return objectMapper.readValue(jsonString, Map.class);
         }
 
         public static CelCompilerBuilder addVariablesToCompiler(CelCompilerBuilder celCompilerBuilder, Map<String, Object> jsonData, String parentKey) throws InvalidProtocolBufferException, JsonProcessingException {
@@ -116,7 +100,6 @@ public class EventceptionProcessors {
                 } else if (firstElement instanceof Map) {
                     addVariablesToCompiler(celCompilerBuilder, (Map<String, Object>) firstElement, key);
                 } else {
-                    // Handle other types as dynamic lists
                     celCompilerBuilder.addVar(key, CelTypes.createList(CelTypes.DYN));
                 }
             } else {
@@ -156,7 +139,18 @@ public class EventceptionProcessors {
                 log.error("Evaluation error has occurred. Reason: " + e.getMessage(), e);
                 Record<String, String> dlqRecord = record.withHeaders(record.headers().add("error-message", e.getMessage().getBytes()));
                 context.forward(dlqRecord, "dlq-processor");
-                
+            } catch (CelValidationException e) {
+                log.error("Evaluation error has occurred. Reason: " + e.getMessage(), e);
+                Record<String, String> dlqRecord = record.withHeaders(record.headers().add("error-message", e.getMessage().getBytes()));
+                context.forward(dlqRecord, "dlq-processor");
+            } catch (JsonProcessingException e) {
+                log.error("Evaluation error has occurred. Reason: " + e.getMessage(), e);
+                Record<String, String> dlqRecord = record.withHeaders(record.headers().add("error-message", e.getMessage().getBytes()));
+                context.forward(dlqRecord, "dlq-processor");
+            } catch (InvalidProtocolBufferException e) {
+                log.error("Evaluation error has occurred. Reason: " + e.getMessage(), e);
+                Record<String, String> dlqRecord = record.withHeaders(record.headers().add("error-message", e.getMessage().getBytes()));
+                context.forward(dlqRecord, "dlq-processor");
             } catch (Exception e) {
                 log.error("Error evaluating CEL expression: " + e);
                 Record<String, String> dlqRecord = record.withHeaders(record.headers().add("error-message", e.getMessage().getBytes()));
@@ -171,75 +165,119 @@ public class EventceptionProcessors {
 
     }
 
-    // public static class CELFilter extends AbstractProcessor<String, String> {
-    //     private final ProcessorConfig config;
-    //     private final OutputConfig outputConfig;
-    //     private CEL cel;
-    //     private String celExpression;
+    public static class JSONTransform implements Processor<String, String, String, String> {
+        private static final Logger log = LoggerFactory.getLogger(JSONTransform.class);
+        private final ProcessorConfig config;
+        private Jsonata jsonataKey;
+        private Jsonata jsonataValue;
+        private ProcessorContext<String, String> context;
 
-    //     public CELFilter(ProcessorConfig config, OutputConfig outputConfig) {
-    //         this.config = config;
-    //         this.outputConfig = outputConfig;
-    //     }
+        public JSONTransform(ProcessorConfig config) {
+            this.config = config;
+        }
 
-    //     @Override
-    //     public void init(ProcessorContext context) {
-    //         CELBuilder celBuilder = CEL.builder();
-    //         cel = celBuilder.build();
-    //         celExpression = config.getCelExpression();
-    //     }
+        @Override
+        public void init(ProcessorContext<String, String> context) {
+            this.context = context;
+            try {
+                jsonataKey = Jsonata.jsonata(config.getTransform().getKey());
+                jsonataValue = Jsonata.jsonata(config.getTransform().getValue());
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to initialize JSONata expressions", e);
+            }
+        }
 
-    //     @Override
-    //     public void process(String key, String value) {
-    //         try {
-    //             // Evaluate the CEL expression
-    //             Map<String, Object> variables = new HashMap<>();
-    //             variables.put("request", key);
-    //             variables.put("response", value);
-    //             ExprValue exprValue = cel.eval(celExpression, variables);
-    //             if (!exprValue.booleanValue()) {
-    //                 context.forward(key, value, To.all().withTopic(outputConfig.getDlq()));
-    //                 return;
-    //             }
-    //             context.forward(key, value);
-    //         } catch (Exception e) {
-    //             context.forward(key, value, To.all().withTopic(outputConfig.getDlq()));
-    //         }
-    //     }
-    // }
+        public static Map<String, Object> parseJson(String jsonString) throws JsonMappingException, JsonProcessingException {
+            ObjectMapper objectMapper = new ObjectMapper();
+            return objectMapper.readValue(jsonString, Map.class);
+        }
 
-    // public static class JSONataTransform extends AbstractProcessor<String, String> {
-    //     private final ProcessorConfig config;
-    //     private final OutputConfig outputConfig;
-    //     private JSONata jsonataKey;
-    //     private JSONata jsonataValue;
+        public static String convertToString(Object object) {
+            if (object == null) {
+                return "null";
+            }
+    
+            if (object.getClass().isArray()) {
+                StringBuilder sb = new StringBuilder();
+                sb.append("[");
+                int length = Array.getLength(object);
+                for (int i = 0; i < length; i++) {
+                    if (i > 0) sb.append(", ");
+                    sb.append(convertToString(Array.get(object, i)));
+                }
+                sb.append("]");
+                return sb.toString();
+            }
+    
+            if (object instanceof Collection) {
+                Collection<?> collection = (Collection<?>) object;
+                StringBuilder sb = new StringBuilder();
+                sb.append("[");
+                Iterator<?> iterator = collection.iterator();
+                while (iterator.hasNext()) {
+                    sb.append(convertToString(iterator.next()));
+                    if (iterator.hasNext()) sb.append(", ");
+                }
+                sb.append("]");
+                return sb.toString();
+            }
+    
+            if (object instanceof Map) {
+                Map<?, ?> map = (Map<?, ?>) object;
+                StringBuilder sb = new StringBuilder();
+                sb.append("{");
+                Iterator<? extends Map.Entry<?, ?>> iterator = map.entrySet().iterator();
+                while (iterator.hasNext()) {
+                    Map.Entry<?, ?> entry = iterator.next();
+                    sb.append("\"").append(escapeJsonString(entry.getKey().toString())).append("\": ")
+                      .append(convertToString(entry.getValue()));
+                    if (iterator.hasNext()) sb.append(", ");
+                }
+                sb.append("}");
+                return sb.toString();
+            }
+    
+            if (object instanceof String) {
+                return "\"" + escapeJsonString(object.toString()) + "\"";
+            }
+    
+            if (object instanceof Number || object instanceof Boolean) {
+                return object.toString();
+            }
+    
+            return "\"" + escapeJsonString(object.toString()) + "\"";
+        }
+    
+        private static String escapeJsonString(String input) {
+            return input.replace("\\", "\\\\")
+                        .replace("\"", "\\\"")
+                        .replace("\n", "\\n")
+                        .replace("\r", "\\r")
+                        .replace("\t", "\\t");
+        }
+        @Override
+        public void process(Record<String, String> record) {
+            try {
+                String key = record.key();
+                String value = record.value();
+                log.info("Processing record for JSON Transform "+value);
+                Map<String, Object> jsonData = parseJson(value);
+                String transformedKey = convertToString(jsonataKey.evaluate(jsonData));
+                String transformedValue = convertToString(jsonataValue.evaluate(jsonData));
+                context.forward(new Record<>(transformedKey, transformedValue, record.timestamp()));
+            } catch (JsonProcessingException e) {
+                log.error("Error transforming JSON: " + e);
+                String errorMessage = "Error while parsing record value as JSON - "+e.getMessage();
+                Record<String, String> dlqRecord = record.withHeaders(record.headers().add("error-message", errorMessage.getBytes()));
+                context.forward(dlqRecord, "dlq-processor");
+            } catch (Exception e) {
+                log.error("Error transforming JSON: " + e);
+                Record<String, String> dlqRecord = record.withHeaders(record.headers().add("error-message", e.getMessage().getBytes()));
+                context.forward(dlqRecord, "dlq-processor");
+            }
+        }
+    }
 
-    //     public JSONataTransform(ProcessorConfig config, OutputConfig outputConfig) {
-    //         this.config = config;
-    //         this.outputConfig = outputConfig;
-    //     }
-
-    //     @Override
-    //     public void init(ProcessorContext context) {
-    //         try {
-    //             jsonataKey = JSONata.newInstance().evaluate(config.getTransform().getKey());
-    //             jsonataValue = JSONata.newInstance().evaluate(config.getTransform().getValue());
-    //         } catch (Exception e) {
-    //             throw new RuntimeException("Failed to initialize JSONata expressions", e);
-    //         }
-    //     }
-
-    //     @Override
-    //     public void process(String key, String value) {
-    //         try {
-    //             String transformedKey = jsonataKey.evaluate(key).stringValue();
-    //             String transformedValue = jsonataValue.evaluate(value).stringValue();
-    //             context.forward(transformedKey, transformedValue);
-    //         } catch (Exception e) {
-    //             context.forward(key, value, To.all().withTopic(outputConfig.getDlq()));
-    //         }
-    //     }
-    // }
 
     public static class ChangeDataCapture implements Processor<String, String, String, String> {
         private static final Logger log = LoggerFactory.getLogger(ChangeDataCapture.class);
@@ -304,29 +342,4 @@ public class EventceptionProcessors {
             return diff;
         }
     }
-
-    
-
-    // public static class SinkProcessor implements Processor<String, String, String, String> {
-    //     private final OutputConfig outputConfig;
-    //     private ProcessorContext<String, String> context;
-
-    //     public SinkProcessor(OutputConfig outputConfig) {
-    //         this.outputConfig = outputConfig;
-    //     }
-
-    //     @Override
-    //     public void init(ProcessorContext<String, String>  context) {
-    //         this.context = context;
-    //     }
-
-    //     @Override
-    //     public void process(Record<String, String> record) {
-    //         try {
-    //             // context.forward(record, To.all().withTopic(outputConfig.getTopic()));
-    //         } catch (Exception e) {
-    //             // context.forward(record, To.all().withTopic(outputConfig.getDlq()));
-    //         }
-    //     }
-    // }
 }

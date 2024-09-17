@@ -3,7 +3,6 @@ package com.platformatory.eventception.processor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.platformatory.eventception.processor.ServiceConfig.TopologyConfig;
-import com.platformatory.eventception.processor.ServiceConfig.TopologyConfig.OutputConfig.Sink;
 
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KafkaStreams;
