@@ -32,5 +32,5 @@ docker compose restart eventception-lite
 - [x] CEL Filter
 - [ ] Transform processor
 - [x] Logging in Kafka Streams
-- [ ] Support DLQ
+- [x] Support DLQ
 - [ ] keyLookupExpression in CDC
