@@ -27,18 +27,20 @@ services:
     config:
       key_names: [securekey]
       key_in_query: false
-- name: "orders-microservice"
+- name: "microservice"
   url: http://httpbin.org/anything
   routes:
-  - name: create-orders
+  - name: orders
     paths:
     - /orders
     methods:
     - POST
-  - name: update-orders
+    - PUT
+  - name: users
     paths:
-    - /orders
+    - /users
     methods:
+    - POST
     - PUT
 - name: "demo-webhook"
   url: http://httpbin.org/post
@@ -56,7 +58,7 @@ plugins:
   config:
     hide_credentials: true
 - name: kong-event-pub
-  service: orders-microservice
+  service: microservice
   config:
     bootstrap_servers: broker
     port: 29092
@@ -70,10 +72,10 @@ plugins:
     # sasl_user: '4X7U6FFNZA3YVKEY'
     # sasl_password: 'e8EgQMlWvcb/iaL5jUZSE9UDD0sQFcksjC1jBoao+lLWosyCDw78oEjbMA4tv9yJ'
     #    encoding: "application/json"
-    eventkey: '{{request.body.order_id}}'
+    eventkey: '{{request.body.id}}'
     # eventval: '{"specversion": "1.0", "action": "place-order", "source": "{{ client.ip }}", "id": "{{request.body.order_id}}", "time": "{{response.headers.date}}"}'
     # eventval: '{ "route": { "path_handling": "{{route.path_handling}}", "regex_priority": "{{route.regex_priority}}", "request_buffering": "{{route.request_buffering}}", "response_buffering": "{{route.response_buffering}}", "created_at": "{{route.created_at}}", "updated_at": "{{route.updated_at}}", "https_redirect_status_code": "{{route.https_redirect_status_code}}", "service": { "id": "{{route.service.id}}" }, "name": "{{route.name}}", "strip_path": "{{route.strip_path}}", "id": "{{route.name}}", "preserve_host": "{{route.name}}", "ws_id": "{{route.name}}" }, "response": "{{response}}", "request": { "method": "{{request.method}}", "path": "{{request.path}}", "headers": "{{request.headers}}", "body": "{{request.body}}", "time": "{{request.time}}", "correlation_id": "{{request.correlation_id}}", "query": "{{request.query}}" }, "client": "{{client}}", "service": "{{service}}" }'
-    topic: 'api-logs-orders' 
+    topic: 'api-logs-{{route.name}}' 
 consumers:
 - username: sdkuser
   custom_id: sdk_user
