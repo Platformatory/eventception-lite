@@ -21,6 +21,7 @@ kafka:
       adminClient:
         retries: 5
         request.timeout.ms: 30000
+      auto.create.topics.enable: "true"
     connectProperties:
       group.id: "eventception-connect"
       key.converter: org.apache.kafka.connect.storage.StringConverter
@@ -35,20 +36,24 @@ topologies:
     input:
       topics: "api-logs-.*" # Regex pattern to subscribe to input topics
     processors:
-      - type: CelFilter
-        name: filter
-        celExpression: "request.path == '/orders' && (response.status == 200 || response.status == 201)"
-      - type: JSONTransform
-        name: transform
-        transform:
-          key: '$join([$substring(request.path, 1), "-", request.body.order_id])'
-          value: '{"specversion": "1.0", "action": request.method="POST" ? "create-order": request.method="PUT" ? "update-order" : "unkown", "source": client.ip, "id": request.body.order_id, "orderplaced": $fromMillis(request.time), "orderprocessed": response.headers.date, "order_quantity": request.body.quantity}'
-      - type: ChangeDataCapture
-        name: cdc
+     # - type: CelFilter
+      #  name: filter
+        #celExpression: "request.path == '/orders' && (response.status == 200 || response.status == 201)"
+      #- type: JSONTransform
+       # name: transform
+       # transform:
+        #  key: '$join([$substring(request.path, 1), "-", request.body.order_id])'
+         # value: '{"specversion": "1.0", "action": request.method="POST" ? "create-order": request.method="PUT" ? "update-order" : "unkown", "source": client.ip, "id": request.body.order_id, "orderplaced": $fromMillis(request.time), "orderprocessed": response.headers.date, "order_quantity": request.body.quantity}'
+      - type: DynamicTopicProcessor
+        name: dynamic-topic-processor
+        outputConfig:
+          topic: "$substringAfter(request.path, '/')" 
+          dlq: "$substringAfter(request.path, '/')"
+
         # keyLookupExpression: "request.id"
     output:
-      topic: "orders-cdc"
-      dlq: "orders-cdc-dlq"
+      topic: "$join([$substring(request.path, 1), '-cdc'])"
+      dlq: "$join([$substring(request.path, 1), '-cdc-dlq'])"
 
 # connectors:
 #   - type: WebhookSink

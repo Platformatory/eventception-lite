@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.wnameless.json.flattener.JsonFlattener;
 import com.google.common.collect.ImmutableMap;
 import com.platformatory.eventception.processor.ServiceConfig.TopologyConfig.ProcessorConfig;
+import com.platformatory.eventception.processor.ServiceConfig.TopologyConfig.OutputConfig;
 
 import dev.cel.common.CelAbstractSyntaxTree;
 import dev.cel.common.CelValidationException;
@@ -40,7 +41,7 @@ import com.google.protobuf.Struct;
 import com.google.protobuf.util.JsonFormat;
 
 public class EventceptionProcessors {
-
+   
     public static class CelFilter implements Processor<String, String, String, String> {
 
         private static final Logger log = LoggerFactory.getLogger(CelFilter.class);
@@ -174,6 +175,7 @@ public class EventceptionProcessors {
 
         public JSONTransform(ProcessorConfig config) {
             this.config = config;
+            
         }
 
         @Override
@@ -342,4 +344,71 @@ public class EventceptionProcessors {
             return diff;
         }
     }
+    public static class DynamicTopicProcessor implements Processor<String, String, String, String> {
+        private static final Logger log = LoggerFactory.getLogger(DynamicTopicProcessor.class);
+        
+        private ProcessorContext<String, String> context;
+        private Jsonata jsonataTopic;
+        private ServiceConfig.TopologyConfig.OutputConfig outputConfig;
+
+        // Constructor accepting the ServiceConfig.TopologyConfig.OutputConfig object
+        public DynamicTopicProcessor(ServiceConfig.TopologyConfig.OutputConfig outputConfig) {
+            System.out.println("Processing record: ");
+            this.outputConfig = outputConfig;
+            try {
+                System.out.println("Processing record: ");
+                log.debug("Initializing Jsonata expression for dynamic topic creation.");
+
+                // Compile the Jsonata expression from the output config topic
+                jsonataTopic = Jsonata.jsonata(outputConfig.getTopic());
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to initialize Jsonata expression for topic assignment", e);
+            }
+        }
+
+        @Override
+        public void init(ProcessorContext<String, String> context) {
+            this.context = context;
+        }
+
+        @Override
+        public void process(Record<String, String> record) {
+            try {
+                String value = record.value();
+                Map<String, Object> jsonData = parseJson(value); // Implement the method to parse JSON
+
+                // Extract the request path dynamically
+                String requestPath = (String) ((Map<String, Object>) jsonData.get("request")).get("path");
+
+                // Use the request path to construct the dynamic topic
+                String baseTopicName = requestPath.replaceFirst("/", ""); // Remove leading '/'
+                String dynamicTopic = baseTopicName + "-" + jsonataTopic.evaluate(jsonData);
+
+                log.info("Forwarding record to dynamic topic: {}", dynamicTopic);
+
+                // Forward the record to the dynamically assigned topic
+                context.forward(new Record<>(record.key(), value, record.timestamp()), dynamicTopic);
+            } catch (Exception e) {
+                log.error("Error processing record for dynamic topic assignment: {}", e.getMessage());
+                
+                // Forward the record to the DLQ if defined
+                if (outputConfig.getDlq() != null) {
+                    context.forward(new Record<>(record.key(), record.value(), record.timestamp()), outputConfig.getDlq());
+                    log.warn("Forwarded record to DLQ: {}", outputConfig.getDlq());
+                }
+            }
+        }
+
+        // Method to parse JSON string to a Map
+        private Map<String, Object> parseJson(String jsonString) throws JsonProcessingException {
+            ObjectMapper objectMapper = new ObjectMapper();
+            return objectMapper.readValue(jsonString, Map.class);
+        }
+
+        @Override
+        public void close() {
+            // Optional: Implement any cleanup logic if required
+        }
+    }
 }
+
