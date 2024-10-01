@@ -137,23 +137,23 @@ public class EventceptionProcessors {
                 }
             } catch (CelEvaluationException e) {
                 log.error("Evaluation error has occurred. Reason: " + e.getMessage(), e);
-                Record<String, String> dlqRecord = record.withHeaders(record.headers().add("error-message", e.getMessage().getBytes()));
+                Record<String, String> dlqRecord = record.withHeaders(record.headers().add("eventception-error-message", e.getMessage().getBytes()));
                 context.forward(dlqRecord, "dlq-processor");
             } catch (CelValidationException e) {
                 log.error("Evaluation error has occurred. Reason: " + e.getMessage(), e);
-                Record<String, String> dlqRecord = record.withHeaders(record.headers().add("error-message", e.getMessage().getBytes()));
+                Record<String, String> dlqRecord = record.withHeaders(record.headers().add("eventception-error-message", e.getMessage().getBytes()));
                 context.forward(dlqRecord, "dlq-processor");
             } catch (JsonProcessingException e) {
                 log.error("Evaluation error has occurred. Reason: " + e.getMessage(), e);
-                Record<String, String> dlqRecord = record.withHeaders(record.headers().add("error-message", e.getMessage().getBytes()));
+                Record<String, String> dlqRecord = record.withHeaders(record.headers().add("eventception-error-message", e.getMessage().getBytes()));
                 context.forward(dlqRecord, "dlq-processor");
             } catch (InvalidProtocolBufferException e) {
                 log.error("Evaluation error has occurred. Reason: " + e.getMessage(), e);
-                Record<String, String> dlqRecord = record.withHeaders(record.headers().add("error-message", e.getMessage().getBytes()));
+                Record<String, String> dlqRecord = record.withHeaders(record.headers().add("eventception-error-message", e.getMessage().getBytes()));
                 context.forward(dlqRecord, "dlq-processor");
             } catch (Exception e) {
                 log.error("Error evaluating CEL expression: " + e);
-                Record<String, String> dlqRecord = record.withHeaders(record.headers().add("error-message", e.getMessage().getBytes()));
+                Record<String, String> dlqRecord = record.withHeaders(record.headers().add("eventception-error-message", e.getMessage().getBytes()));
                 context.forward(dlqRecord, "dlq-processor");
             }
         }
@@ -268,11 +268,11 @@ public class EventceptionProcessors {
             } catch (JsonProcessingException e) {
                 log.error("Error transforming JSON: " + e);
                 String errorMessage = "Error while parsing record value as JSON - "+e.getMessage();
-                Record<String, String> dlqRecord = record.withHeaders(record.headers().add("error-message", errorMessage.getBytes()));
+                Record<String, String> dlqRecord = record.withHeaders(record.headers().add("eventception-error-message", errorMessage.getBytes()));
                 context.forward(dlqRecord, "dlq-processor");
             } catch (Exception e) {
                 log.error("Error transforming JSON: " + e);
-                Record<String, String> dlqRecord = record.withHeaders(record.headers().add("error-message", e.getMessage().getBytes()));
+                Record<String, String> dlqRecord = record.withHeaders(record.headers().add("eventception-error-message", e.getMessage().getBytes()));
                 context.forward(dlqRecord, "dlq-processor");
             }
         }
@@ -304,7 +304,7 @@ public class EventceptionProcessors {
                 // try{
                 //     Map<String, Object> diff = calculateDiff(beforeImage, afterImage);
                 // } catch(Exception e) {
-                //     Record<String, String> dlqRecord = record.withHeaders(record.headers().add("error-message", e.getMessage().getBytes()));
+                //     Record<String, String> dlqRecord = record.withHeaders(record.headers().add("eventception-error-message", e.getMessage().getBytes()));
                 //     context.forward(dlqRecord, "dlq-processor");
                 // }
 

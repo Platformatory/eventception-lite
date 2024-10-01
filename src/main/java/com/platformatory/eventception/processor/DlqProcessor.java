@@ -1,5 +1,6 @@
 package com.platformatory.eventception.processor;
 
+import org.apache.kafka.common.header.Header;
 import org.apache.kafka.streams.processor.api.Processor;
 import org.apache.kafka.streams.processor.api.ProcessorContext;
 import org.apache.kafka.streams.processor.api.Record;
@@ -22,6 +23,10 @@ public class DlqProcessor implements Processor<String, String, String, String> {
 
     @Override
     public void process(Record<String, String> record) {
-        context.forward(record);
+        for (Header header : record.headers()) {
+            if (header.key() == "eventception-error-message") {
+                context.forward(record);
+            }
+        }
     }
 }
