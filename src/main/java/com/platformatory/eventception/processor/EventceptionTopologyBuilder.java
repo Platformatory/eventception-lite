@@ -8,7 +8,8 @@ import org.apache.kafka.streams.state.StoreBuilder;
 import org.apache.kafka.streams.state.Stores;
 
 import com.platformatory.eventception.processor.ServiceConfig.TopologyConfig;
-import com.platformatory.eventception.processor.ServiceConfig.TopologyConfig.ProcessorConfig;
+import com.platformatory.eventception.processor.ServiceConfig.TopologyConfig.SubTopologyConfig;
+import com.platformatory.eventception.processor.ServiceConfig.TopologyConfig.SubTopologyConfig.ProcessorConfig;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -22,43 +23,45 @@ public class EventceptionTopologyBuilder {
             
             
             topology.addSource("source", Pattern.compile(topologyConfig.getInput().getTopics()));
-            String parentProcessorName = "source";
-            ArrayList<String> processorNames = new ArrayList<String>();
-            try {
-                for (ProcessorConfig processorConfig : topologyConfig.getProcessors()) {
-                    String className = "com.platformatory.eventception.processor.EventceptionProcessors$"+processorConfig.getType();
-                    String processorName = processorConfig.getName();
-                    Class<?> clazz = Class.forName(className);
-                    Constructor<?> constructor = clazz.getConstructor(ProcessorConfig.class);
-                    topology.addProcessor(processorName, () -> {
-                        try {
-                            processorNames.add(processorName);
-                            return (Processor<String, String, String, String>) constructor.newInstance(processorConfig);
-                        } catch (InstantiationException | IllegalAccessException | IllegalArgumentException
-                                | InvocationTargetException e) {
-                                throw new RuntimeException("Failed to initialize processors", e);
+            for(SubTopologyConfig subTopologyConfig : topologyConfig.getSubTopologies()) {
+                String parentProcessorName = "source";
+                ArrayList<String> processorNames = new ArrayList<String>();
+                try {
+                    for (ProcessorConfig processorConfig : subTopologyConfig.getProcessors()) {
+                        String className = "com.platformatory.eventception.processor.EventceptionProcessors$"+processorConfig.getType();
+                        String processorName = processorConfig.getName();
+                        Class<?> clazz = Class.forName(className);
+                        Constructor<?> constructor = clazz.getConstructor(ProcessorConfig.class);
+                        topology.addProcessor(processorName, () -> {
+                            try {
+                                processorNames.add(processorName);
+                                return (Processor<String, String, String, String>) constructor.newInstance(processorConfig);
+                            } catch (InstantiationException | IllegalAccessException | IllegalArgumentException
+                                    | InvocationTargetException e) {
+                                    throw new RuntimeException("Failed to initialize processors", e);
+                            }
+                        }, parentProcessorName);
+
+                        if (processorConfig.getType().equals("ChangeDataCapture")) {
+                            StoreBuilder<KeyValueStore<String, String>> storeBuilder = Stores.keyValueStoreBuilder(
+                                Stores.persistentKeyValueStore(processorConfig.getName() + "-state-store"),
+                                Serdes.String(),
+                                Serdes.String()
+                            );
+                            topology.addStateStore(storeBuilder, processorName);
                         }
-                    }, parentProcessorName);
-
-                    if (processorConfig.getType().equals("ChangeDataCapture")) {
-                        StoreBuilder<KeyValueStore<String, String>> storeBuilder = Stores.keyValueStoreBuilder(
-                            Stores.persistentKeyValueStore(processorConfig.getName() + "-state-store"),
-                            Serdes.String(),
-                            Serdes.String()
-                        );
-                        topology.addStateStore(storeBuilder, processorName);
+                        parentProcessorName = processorName;
                     }
-                    parentProcessorName = processorName;
+                } catch (Exception e) {
+                    throw new RuntimeException("Failed to initialize processors", e);
                 }
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to initialize processors", e);
+                topology.addProcessor(subTopologyConfig.getName() + "-dlq-processor", () -> new DlqProcessor(), processorNames.toArray(new String[0]));
+
+                
+
+                topology.addSink(subTopologyConfig.getName() + "-sink", subTopologyConfig.getOutput().getTopic(), parentProcessorName);
+                topology.addSink(subTopologyConfig.getName() + "-dlq", subTopologyConfig.getOutput().getDlq(), subTopologyConfig.getName() + "-dlq-processor");
             }
-            topology.addProcessor("dlq-processor", () -> new DlqProcessor(), processorNames.toArray(new String[0]));
-
-            
-
-            topology.addSink("sink", topologyConfig.getOutput().getTopic(), parentProcessorName);
-            topology.addSink("dlq", topologyConfig.getOutput().getDlq(), "dlq-processor");
 
             return topology;
     }

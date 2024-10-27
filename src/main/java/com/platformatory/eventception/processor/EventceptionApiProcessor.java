@@ -16,7 +16,7 @@ public class EventceptionApiProcessor {
 
     public static void main(String[] args) throws Exception {
         ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        ServiceConfig config = mapper.readValue(new File("config.yaml"), ServiceConfig.class);
+        ServiceConfig config = mapper.readValue(new File("config.dev.yaml"), ServiceConfig.class);
 
         Properties props = new Properties();
         props.put(StreamsConfig.APPLICATION_ID_CONFIG, config.getKafka().getConfig().getStreamsProperties().getApplicationId());
@@ -36,30 +36,28 @@ public class EventceptionApiProcessor {
 
         
 
-        // for (TopologyConfig topologyConfig : config.getTopologies()) {
-            TopologyConfig topologyConfig = config.getTopologies().get(0);
-            EventceptionConnectWorkerBuilder.startConnectWorker(config.getKafka().getConfig());
-            // for (Sink sink : topologyConfig.getOutput().getSinks()) {
-            //     // TODO: Wait for connect to start
-            //     if (sink.getType() == "Webhook") {
-            //         EventceptionConnectors.createWebHookConnector(sink, topologyConfig.getOutput().getTopic());
-            //     }
-            // }
-            Topology topology = EventceptionTopologyBuilder.buildTopology(topologyConfig);
-
-            topology.describe();
-            KafkaStreams streams = new KafkaStreams(topology, props);
-
-            // Add custom JMX metrics
-            // streams.setStateListener((newState, oldState) -> {
-            //     StreamsMetricsImpl metrics = (StreamsMetricsImpl) streams.metrics();
-            //     metrics.addLatencyRateTotalSensor("custom-latency", "latency", "description", RecordingLevel.INFO);
-            //     metrics.addRateTotalSensor("custom-throughput", "throughput", "description", RecordingLevel.INFO);
-            // });
-
-            streams.start();
-
-            Runtime.getRuntime().addShutdownHook(new Thread(streams::close));
+        TopologyConfig topologyConfig = config.getTopology();
+        EventceptionConnectWorkerBuilder.startConnectWorker(config.getKafka().getConfig());
+        // for (Sink sink : topologyConfig.getOutput().getSinks()) {
+        //     // TODO: Wait for connect to start
+        //     if (sink.getType() == "Webhook") {
+        //         EventceptionConnectors.createWebHookConnector(sink, topologyConfig.getOutput().getTopic());
+        //     }
         // }
+        Topology topology = EventceptionTopologyBuilder.buildTopology(topologyConfig);
+
+        topology.describe();
+        KafkaStreams streams = new KafkaStreams(topology, props);
+
+        // Add custom JMX metrics
+        // streams.setStateListener((newState, oldState) -> {
+        //     StreamsMetricsImpl metrics = (StreamsMetricsImpl) streams.metrics();
+        //     metrics.addLatencyRateTotalSensor("custom-latency", "latency", "description", RecordingLevel.INFO);
+        //     metrics.addRateTotalSensor("custom-throughput", "throughput", "description", RecordingLevel.INFO);
+        // });
+
+        streams.start();
+
+        Runtime.getRuntime().addShutdownHook(new Thread(streams::close));
     }
 }

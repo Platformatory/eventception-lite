@@ -7,7 +7,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.platformatory.eventception.processor.ServiceConfig.TopologyConfig.OutputConfig.Sink;
+import com.platformatory.eventception.processor.ServiceConfig.TopologyConfig.SubTopologyConfig.OutputConfig.Sink;
+
 
 public class EventceptionConnectors {
     public static void createConnector(Map<String, Object> connectorConfig) throws Exception {

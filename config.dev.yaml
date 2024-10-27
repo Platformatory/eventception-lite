@@ -34,26 +34,44 @@ kafka:
       # sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username='admin' password='admin-secret';"
       # sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username='4X7U6FFNZA3YVKEY' password='e8EgQMlWvcb/iaL5jUZSE9UDD0sQFcksjC1jBoao+lLWosyCDw78oEjbMA4tv9yJ';"
 
-topologies:
-  - name: api-cdc-pipeline
-    input:
-      topics: "api-logs-.*" # Regex pattern to subscribe to input topics
+topology:
+  name: api-cdc-pipeline
+  input:
+    topics: "api-logs-.*" # Regex pattern to subscribe to input topics
+  subTopologies:
+  - name: orders
     processors:
       - type: CelFilter
-        name: filter
+        name: orderfilter
         celExpression: "request.path == '/orders' && (response.status == 200 || response.status == 201)"
       - type: JSONTransform
-        name: transform
+        name: ordertransform
         transform:
           key: '$join([$substring(request.path, 1), "-", request.body.order_id])'
           value: '{"specversion": "1.0", "action": request.method="POST" ? "create-order": request.method="PUT" ? "update-order" : "unkown", "source": client.ip, "id": request.body.order_id, "orderplaced": $fromMillis(request.time), "orderprocessed": response.headers.date, "order_quantity": request.body.quantity}'
           # value: '{"specversion": "1.0", "action": request.method="POST" ? "create-order": request.method="PUT" ? "update-order" : "unkown", "source": client.ip, "id": request.body.order_id, "orderplaced": $fromMillis(request.time, "[FNn,3], [D01] [MNn,3] [Y0001] [h01]:[m01]:[s01] [z]"), "orderprocessed": response.headers.date}'
       - type: ChangeDataCapture
-        name: cdc
+        name: ordercdc
         keyLookupExpression: "request.id" # Not implemented
     output:
-      topic: "orders-cdc" # CEL expression for dynamic output evaluation, CEL expression not implemented
-      dlq: "orders-cdc-dlq" # CEL expression for dynamic DLQ evaluation
+      topic: "orders-cdc"
+      dlq: "orders-cdc-dlq"
+  - name: users
+    processors:
+      - type: CelFilter
+        name: userfilter
+        celExpression: "request.path == '/users' && (response.status == 200 || response.status == 201)"
+      - type: JSONTransform
+        name: usertransform
+        transform:
+          key: '$join([$substring(request.path, 1), "-", request.body.user_id])'
+          value: '{"specversion": "1.0", "action": request.method="POST" ? "create-user": request.method="PUT" ? "update-user" : "unkown", "source": client.ip, "id": request.body.user_id, "userplaced": $fromMillis(request.time), "userprocessed": response.headers.date, "user_age": request.body.age}'
+      - type: ChangeDataCapture
+        name: usercdc
+        keyLookupExpression: "request.id" # Not implemented
+    output:
+      topic: "users-cdc"
+      dlq: "users-cdc-dlq"
 
 # connectors:
 #   - type: WebhookSink

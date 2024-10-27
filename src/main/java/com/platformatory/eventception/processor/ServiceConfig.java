@@ -9,7 +9,7 @@ public class ServiceConfig {
     private String name;
     private String description;
     private Kafka kafka;
-    private List<TopologyConfig> topologies;
+    private TopologyConfig topology;
 
     public String getName() {
         return name;
@@ -35,12 +35,12 @@ public class ServiceConfig {
         this.kafka = kafka;
     }
 
-    public List<TopologyConfig> getTopologies() {
-        return topologies;
+    public TopologyConfig getTopology() {
+        return topology;
     }
 
-    public void setTopologies(List<TopologyConfig> topologies) {
-        this.topologies = topologies;
+    public void setTopologies(TopologyConfig topology) {
+        this.topology = topology;
     }
 
     public static class Kafka {
@@ -170,10 +170,7 @@ public class ServiceConfig {
     public static class TopologyConfig {
         private String name;
         private Input input;
-        private List<ProcessorConfig> processors;
-        private OutputConfig output;
-
-        
+        private List<SubTopologyConfig> subTopologies;
 
         public String getName() {
             return name;
@@ -191,20 +188,12 @@ public class ServiceConfig {
             this.input = input;
         }
 
-        public List<ProcessorConfig> getProcessors() {
-            return processors;
+        public List<SubTopologyConfig> getSubTopologies() {
+            return subTopologies;
         }
 
-        public void setProcessors(List<ProcessorConfig> processors) {
-            this.processors = processors;
-        }
-
-        public OutputConfig getOutput() {
-            return output;
-        }
-
-        public void setOutput(OutputConfig output) {
-            this.output = output;
+        public void setSubTopologies(List<SubTopologyConfig> subTopologies) {
+            this.subTopologies = subTopologies;
         }
 
         public static class Input {
@@ -221,144 +210,177 @@ public class ServiceConfig {
             
         }
 
-        public static class ProcessorConfig {
-            private String type;
-            private String celExpression;
-            private Transform transform;
-            private String keyLookupExpression;
+        public static class SubTopologyConfig {
             private String name;
-
-            
-
-            public String getType() {
-                return type;
-            }
-
-
-
-            public void setType(String type) {
-                this.type = type;
-            }
-
-
-
-            public String getCelExpression() {
-                return celExpression;
-            }
-
-
-
-            public void setCelExpression(String celExpression) {
-                this.celExpression = celExpression;
-            }
-
-
-
-            public Transform getTransform() {
-                return transform;
-            }
-
-
-
-            public void setTransform(Transform transform) {
-                this.transform = transform;
-            }
-
-
-
-            public String getKeyLookupExpression() {
-                return keyLookupExpression;
-            }
-
-
-
-            public void setKeyLookupExpression(String keyLookupExpression) {
-                this.keyLookupExpression = keyLookupExpression;
-            }
-
+            private List<ProcessorConfig> processors;
+            private OutputConfig output;
 
             public String getName() {
                 return name;
             }
-
-
-
+            
             public void setName(String name) {
                 this.name = name;
             }
 
+            public List<ProcessorConfig> getProcessors() {
+                return processors;
+            }
+    
+            public void setProcessors(List<ProcessorConfig> processors) {
+                this.processors = processors;
+            }
+    
+            public OutputConfig getOutput() {
+                return output;
+            }
+    
+            public void setOutput(OutputConfig output) {
+                this.output = output;
+            }
 
-            public static class Transform {
-                private String key;
-                private String value;
-                public String getKey() {
-                    return key;
-                }
-                public void setKey(String key) {
-                    this.key = key;
-                }
-                public String getValue() {
-                    return value;
-                }
-                public void setValue(String value) {
-                    this.value = value;
-                }
-
-                
-            }
-            
-        }
-
-        public static class OutputConfig {
-            private String topic;
-            private String dlq;
-            private List<Sink> sinks;
-            public String getTopic() {
-                return topic;
-            }
-            public void setTopic(String topic) {
-                this.topic = topic;
-            }
-            public String getDlq() {
-                return dlq;
-            }
-            public void setDlq(String dlq) {
-                this.dlq = dlq;
-            }
-            
-            
-            public static class Sink {
+            public static class ProcessorConfig {
                 private String type;
+                private String celExpression;
+                private Transform transform;
+                private String keyLookupExpression;
                 private String name;
-                private Map<String, Object> config;
+    
+                
+    
                 public String getType() {
                     return type;
                 }
+    
+    
+    
                 public void setType(String type) {
                     this.type = type;
                 }
+    
+    
+    
+                public String getCelExpression() {
+                    return celExpression;
+                }
+    
+    
+    
+                public void setCelExpression(String celExpression) {
+                    this.celExpression = celExpression;
+                }
+    
+    
+    
+                public Transform getTransform() {
+                    return transform;
+                }
+    
+    
+    
+                public void setTransform(Transform transform) {
+                    this.transform = transform;
+                }
+    
+    
+    
+                public String getKeyLookupExpression() {
+                    return keyLookupExpression;
+                }
+    
+    
+    
+                public void setKeyLookupExpression(String keyLookupExpression) {
+                    this.keyLookupExpression = keyLookupExpression;
+                }
+    
+    
                 public String getName() {
                     return name;
                 }
+    
+    
+    
                 public void setName(String name) {
                     this.name = name;
                 }
-                public Map<String, Object> getConfig() {
-                    return config;
-                }
-                public void setConfig(Map<String, Object> config) {
-                    this.config = config;
+    
+    
+                public static class Transform {
+                    private String key;
+                    private String value;
+                    public String getKey() {
+                        return key;
+                    }
+                    public void setKey(String key) {
+                        this.key = key;
+                    }
+                    public String getValue() {
+                        return value;
+                    }
+                    public void setValue(String value) {
+                        this.value = value;
+                    }
+    
+                    
                 }
                 
             }
-
-
-            public List<Sink> getSinks() {
-                return sinks;
+    
+            public static class OutputConfig {
+                private String topic;
+                private String dlq;
+                private List<Sink> sinks;
+                public String getTopic() {
+                    return topic;
+                }
+                public void setTopic(String topic) {
+                    this.topic = topic;
+                }
+                public String getDlq() {
+                    return dlq;
+                }
+                public void setDlq(String dlq) {
+                    this.dlq = dlq;
+                }
+                
+                
+                public static class Sink {
+                    private String type;
+                    private String name;
+                    private Map<String, Object> config;
+                    public String getType() {
+                        return type;
+                    }
+                    public void setType(String type) {
+                        this.type = type;
+                    }
+                    public String getName() {
+                        return name;
+                    }
+                    public void setName(String name) {
+                        this.name = name;
+                    }
+                    public Map<String, Object> getConfig() {
+                        return config;
+                    }
+                    public void setConfig(Map<String, Object> config) {
+                        this.config = config;
+                    }
+                    
+                }
+    
+    
+                public List<Sink> getSinks() {
+                    return sinks;
+                }
+                public void setSinks(List<Sink> sinks) {
+                    this.sinks = sinks;
+                }
             }
-            public void setSinks(List<Sink> sinks) {
-                this.sinks = sinks;
-            }
+
         }
+
+        
     }
 }

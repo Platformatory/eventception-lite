@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.wnameless.json.flattener.JsonFlattener;
 import com.google.common.collect.ImmutableMap;
-import com.platformatory.eventception.processor.ServiceConfig.TopologyConfig.ProcessorConfig;
+import com.platformatory.eventception.processor.ServiceConfig.TopologyConfig.SubTopologyConfig.ProcessorConfig;
 
 import dev.cel.common.CelAbstractSyntaxTree;
 import dev.cel.common.CelValidationException;
@@ -258,7 +258,7 @@ public class EventceptionProcessors {
         @Override
         public void process(Record<String, String> record) {
             try {
-                String key = record.key();
+                // String key = record.key();
                 String value = record.value();
                 log.info("Processing record for JSON Transform "+value);
                 Map<String, Object> jsonData = parseJson(value);
