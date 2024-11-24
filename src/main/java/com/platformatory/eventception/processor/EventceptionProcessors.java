@@ -1,11 +1,28 @@
 package com.platformatory.eventception.processor;
 
+import java.lang.reflect.Array;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.kafka.streams.processor.api.Processor;
+import org.apache.kafka.streams.processor.api.ProcessorContext;
+import org.apache.kafka.streams.processor.api.Record;
+import org.apache.kafka.streams.state.KeyValueStore;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.dashjoin.jsonata.Jsonata;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.wnameless.json.flattener.JsonFlattener;
 import com.google.common.collect.ImmutableMap;
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.Struct;
+import com.google.protobuf.util.JsonFormat;
 import com.platformatory.eventception.processor.ServiceConfig.TopologyConfig.SubTopologyConfig.ProcessorConfig;
 
 import dev.cel.common.CelAbstractSyntaxTree;
@@ -21,24 +38,6 @@ import dev.cel.runtime.CelEvaluationException;
 import dev.cel.runtime.CelRuntime;
 import dev.cel.runtime.CelRuntimeFactory;
 
-import org.apache.kafka.streams.processor.api.Processor;
-import org.apache.kafka.streams.processor.api.ProcessorContext;
-import org.apache.kafka.streams.processor.api.Record;
-import org.apache.kafka.streams.state.KeyValueStore;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.lang.reflect.Array;
-import java.util.Map;
-import java.util.Collection;
-
-import com.google.protobuf.InvalidProtocolBufferException;
-import com.google.protobuf.Struct;
-import com.google.protobuf.util.JsonFormat;
-
 public class EventceptionProcessors {
 
     public static class CelFilter implements Processor<String, String, String, String> {
@@ -46,10 +45,12 @@ public class EventceptionProcessors {
         private static final Logger log = LoggerFactory.getLogger(CelFilter.class);
 
         private ProcessorContext<String, String> context;
-        private ProcessorConfig config;
+        private final ProcessorConfig config;
+        private final String subTopologyName;
 
-        public CelFilter(ProcessorConfig config) {
+        public CelFilter(ProcessorConfig config, String subTopologyName) {
             this.config = config;
+            this.subTopologyName = subTopologyName;
         }
 
         public static CelCompilerBuilder addVariablesToCompiler(CelCompilerBuilder celCompilerBuilder, Map<String, Object> jsonData, String parentKey) throws InvalidProtocolBufferException, JsonProcessingException {
@@ -138,23 +139,23 @@ public class EventceptionProcessors {
             } catch (CelEvaluationException e) {
                 log.error("Evaluation error has occurred. Reason: " + e.getMessage(), e);
                 Record<String, String> dlqRecord = record.withHeaders(record.headers().add("eventception-error-message", e.getMessage().getBytes()));
-                context.forward(dlqRecord, "dlq-processor");
+                context.forward(dlqRecord, subTopologyName+"-dlq-processor");
             } catch (CelValidationException e) {
                 log.error("Evaluation error has occurred. Reason: " + e.getMessage(), e);
                 Record<String, String> dlqRecord = record.withHeaders(record.headers().add("eventception-error-message", e.getMessage().getBytes()));
-                context.forward(dlqRecord, "dlq-processor");
+                context.forward(dlqRecord, subTopologyName+"-dlq-processor");
             } catch (JsonProcessingException e) {
                 log.error("Evaluation error has occurred. Reason: " + e.getMessage(), e);
                 Record<String, String> dlqRecord = record.withHeaders(record.headers().add("eventception-error-message", e.getMessage().getBytes()));
-                context.forward(dlqRecord, "dlq-processor");
+                context.forward(dlqRecord, subTopologyName+"-dlq-processor");
             } catch (InvalidProtocolBufferException e) {
                 log.error("Evaluation error has occurred. Reason: " + e.getMessage(), e);
                 Record<String, String> dlqRecord = record.withHeaders(record.headers().add("eventception-error-message", e.getMessage().getBytes()));
-                context.forward(dlqRecord, "dlq-processor");
+                context.forward(dlqRecord, subTopologyName+"-dlq-processor");
             } catch (Exception e) {
                 log.error("Error evaluating CEL expression: " + e);
                 Record<String, String> dlqRecord = record.withHeaders(record.headers().add("eventception-error-message", e.getMessage().getBytes()));
-                context.forward(dlqRecord, "dlq-processor");
+                context.forward(dlqRecord, subTopologyName+"-dlq-processor");
             }
         }
 
@@ -168,12 +169,14 @@ public class EventceptionProcessors {
     public static class JSONTransform implements Processor<String, String, String, String> {
         private static final Logger log = LoggerFactory.getLogger(JSONTransform.class);
         private final ProcessorConfig config;
+        private final String subTopologyName;
         private Jsonata jsonataKey;
         private Jsonata jsonataValue;
         private ProcessorContext<String, String> context;
 
-        public JSONTransform(ProcessorConfig config) {
+        public JSONTransform(ProcessorConfig config, String subTopologyName) {
             this.config = config;
+            this.subTopologyName = subTopologyName;
         }
 
         @Override
@@ -269,11 +272,11 @@ public class EventceptionProcessors {
                 log.error("Error transforming JSON: " + e);
                 String errorMessage = "Error while parsing record value as JSON - "+e.getMessage();
                 Record<String, String> dlqRecord = record.withHeaders(record.headers().add("eventception-error-message", errorMessage.getBytes()));
-                context.forward(dlqRecord, "dlq-processor");
+                context.forward(dlqRecord, subTopologyName+"-dlq-processor");
             } catch (Exception e) {
                 log.error("Error transforming JSON: " + e);
                 Record<String, String> dlqRecord = record.withHeaders(record.headers().add("eventception-error-message", e.getMessage().getBytes()));
-                context.forward(dlqRecord, "dlq-processor");
+                context.forward(dlqRecord, subTopologyName+"-dlq-processor");
             }
         }
     }
@@ -282,11 +285,13 @@ public class EventceptionProcessors {
     public static class ChangeDataCapture implements Processor<String, String, String, String> {
         private static final Logger log = LoggerFactory.getLogger(ChangeDataCapture.class);
         private final ProcessorConfig config;
+        private final String subTopologyName;
         private ProcessorContext<String, String> context;
         private KeyValueStore<String, String> stateStore;
 
-        public ChangeDataCapture(ProcessorConfig config) {
+        public ChangeDataCapture(ProcessorConfig config, String subTopologyName) {
             this.config = config;
+            this.subTopologyName = subTopologyName;
         }
 
         @Override
@@ -305,7 +310,7 @@ public class EventceptionProcessors {
                 //     Map<String, Object> diff = calculateDiff(beforeImage, afterImage);
                 // } catch(Exception e) {
                 //     Record<String, String> dlqRecord = record.withHeaders(record.headers().add("eventception-error-message", e.getMessage().getBytes()));
-                //     context.forward(dlqRecord, "dlq-processor");
+                //     context.forward(dlqRecord, subTopologyName+"-dlq-processor");
                 // }
 
                 context.forward(new Record<>(record.key(), String.format("{\"before\": %s, \"after\": %s, \"timestamp\": %s}", beforeImage, afterImage, record.timestamp()), record.timestamp()));

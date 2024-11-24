@@ -12,7 +12,7 @@ services:
   kong:
     container_name: kong
     hostname: kong
-    image: platformatorylabs/kong-event-pub:1.0.0-3
+    image: platformatorylabs/kong-event-pub:1.0.0-4
     volumes:
       - ./kong:/opt/conf
     user: "${KONG_USER:-kong}"

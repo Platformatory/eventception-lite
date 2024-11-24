@@ -31,11 +31,11 @@ public class EventceptionTopologyBuilder {
                         String className = "com.platformatory.eventception.processor.EventceptionProcessors$"+processorConfig.getType();
                         String processorName = processorConfig.getName();
                         Class<?> clazz = Class.forName(className);
-                        Constructor<?> constructor = clazz.getConstructor(ProcessorConfig.class);
+                        Constructor<?> constructor = clazz.getConstructor(ProcessorConfig.class, String.class);
                         topology.addProcessor(processorName, () -> {
                             try {
                                 processorNames.add(processorName);
-                                return (Processor<String, String, String, String>) constructor.newInstance(processorConfig);
+                                return (Processor<String, String, String, String>) constructor.newInstance(processorConfig, subTopologyConfig.getName());
                             } catch (InstantiationException | IllegalAccessException | IllegalArgumentException
                                     | InvocationTargetException e) {
                                     throw new RuntimeException("Failed to initialize processors", e);

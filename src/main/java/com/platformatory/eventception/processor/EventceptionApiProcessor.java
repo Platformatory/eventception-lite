@@ -1,22 +1,22 @@
 package com.platformatory.eventception.processor;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.platformatory.eventception.processor.ServiceConfig.TopologyConfig;
+import java.io.File;
+import java.util.Properties;
 
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.Topology;
 
-import java.io.File;
-import java.util.Properties;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.platformatory.eventception.processor.ServiceConfig.TopologyConfig;
 
 public class EventceptionApiProcessor {
 
     public static void main(String[] args) throws Exception {
         ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        ServiceConfig config = mapper.readValue(new File("config.dev.yaml"), ServiceConfig.class);
+        ServiceConfig config = mapper.readValue(new File("config.yaml"), ServiceConfig.class);
 
         Properties props = new Properties();
         props.put(StreamsConfig.APPLICATION_ID_CONFIG, config.getKafka().getConfig().getStreamsProperties().getApplicationId());
