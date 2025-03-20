@@ -61,7 +61,7 @@ topology:
         name: usertransform
         transform:
           key: '$join([$substring(request.path, 1), "-", request.body.user_id])'
-          value: '{"specversion": "1.0", "action": request.method="POST" ? "create-user": request.method="PUT" ? "update-user" : "unkown", "source": client.ip, "id": request.body.user_id, "userplaced": $fromMillis(request.time), "userprocessed": response.headers.date, "user_age": request.body.age}'
+          value: '{"specversion": "1.0", "action": request.method="POST" ? "create-user": request.method="PUT" ? "update-user" : "unkown", "id": request.body.user_id, "user_age": request.body.age}'
       - type: ChangeDataCapture
         name: usercdc
         keyLookupExpression: "request.id" # Not implemented

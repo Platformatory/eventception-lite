@@ -39,7 +39,7 @@ public class ServiceConfig {
         return topology;
     }
 
-    public void setTopologies(TopologyConfig topology) {
+    public void setTopology(TopologyConfig topology) {
         this.topology = topology;
     }
 
